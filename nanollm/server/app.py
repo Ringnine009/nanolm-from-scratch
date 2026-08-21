@@ -90,11 +90,24 @@ async def chat(req: ChatRequest):
     prompt = build_prompt(req)
     ids = runtime.tokenizer.encode(prompt)[-runtime.model.config.block_size:]
     idx = torch.tensor([ids], dtype=torch.long, device=runtime.device)
+    end_id = runtime.tokenizer.special_to_id.get("<|end|>")
 
     def _generate() -> str:
-        gen = runtime.model.generate(idx, max_new_tokens=req.max_tokens,
-                                     temperature=req.temperature, top_k=req.top_k)
-        return runtime.tokenizer.decode(gen[0].tolist())[len(prompt):]
+        generated: list[int] = []
+        cur = idx
+        for _ in range(req.max_tokens):
+            nxt = runtime.model.generate(cur, max_new_tokens=1,
+                                         temperature=req.temperature, top_k=req.top_k)
+            nid = nxt[0, -1].item()
+            generated.append(nid)
+            cur = nxt
+            if nid == end_id:
+                break
+        text = runtime.tokenizer.decode(generated)
+        cut = text.find("<|end|>")
+        if cut != -1:
+            text = text[:cut]
+        return text
 
     # generation is CPU/GPU-bound: run it off the event loop so concurrent
     # requests are not blocked

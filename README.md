@@ -226,3 +226,21 @@ numbers and sample text before/after LoRA fine-tuning. Summary figures are in
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+## 中文摘要
+
+**NanoLM：从零训练并部署一个轻量对话模型。** 用 PyTorch 从零实现了一条完整的语言模型流水线：
+
+1. **分词器**：自实现的 byte-level BPE（在语料上训练 11,741 次合并，词表 12,000），无需 tiktoken。
+2. **模型**：从零手写 GPT（embedding / 因果多头注意力 / 前馈 / LayerNorm / GPT-2 式初始化 / 权重共享），约 **28.3M 参数**（7 层 × 512 维），支持手动注意力与融合内核（SDPA）两种实现并可验证等价。
+3. **预训练**：在 1.5MB 蘑菇安全领域语料（自建知识库 + 维基百科公开文本）上训练 6,000 步（约 28 分钟，RTX 5060 Laptop），loss 从 9.50 稳定下降到 1.03（val 最低 5.02），含 AdamW、warmup+cosine 调度、梯度裁剪、bf16、checkpoint 断点续训。
+4. **LoRA 微调**：自实现低秩适配器（注入 attention/MLP 全投影层，冻结基座权重，仅训练 1.6% 参数），用 442 条蘑菇安全问答对做指令微调（val loss 4.03 → 0.84），适配器独立保存（1.8MB）并可合并回基座。
+5. **推理**：FastAPI + SSE 流式聊天 + 轻量网页 UI + 命令行聊天，完全本地、零 API 成本，可作为蘑菇安全助手的离线层。
+
+**效果对比**：微调前模型无法理解指令（输出重复乱码）；微调后能输出结构化、事实正确的答案（如"毒鹅膏含 α-鹅膏蕈碱，6-24 小时后出现延迟中毒症状，应立即联系中毒控制中心"）。
+
+**运行**：见上方英文 Quick start（`build_corpus.py` → `prepare_data.py` → `nanollm.train` → `nanollm.finetune` → `nanollm.merge` → `nanollm.server.app`）。
+
+**安全声明**：本项目仅为深度学习教学演示，输出不可用于真实蘑菇辨识或医疗决策。

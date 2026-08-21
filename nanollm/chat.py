@@ -50,9 +50,17 @@ def main(argv=None):
         prompt = f"<|user|>{question}<|assistant|>"
         ids = tokenizer.encode(prompt)[-config.block_size:]
         idx = torch.tensor([ids], dtype=torch.long, device=device)
-        gen = model.generate(idx, max_new_tokens=args.max_new_tokens,
-                             temperature=args.temperature, top_k=args.top_k)
-        text = tokenizer.decode(gen[0].tolist())[len(prompt):]
+        end_id = tokenizer.special_to_id.get("<|end|>")
+        generated = []
+        cur = idx
+        for _ in range(args.max_new_tokens):
+            next_id = model.generate(cur, max_new_tokens=1, temperature=args.temperature, top_k=args.top_k)
+            nid = next_id[0, -1].item()
+            generated.append(nid)
+            cur = next_id
+            if nid == end_id:
+                break
+        text = tokenizer.decode(generated)[len(prompt):]
         cut = text.find("<|end|>")
         if cut != -1:
             text = text[:cut]

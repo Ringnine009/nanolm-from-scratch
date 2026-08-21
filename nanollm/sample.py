@@ -22,6 +22,10 @@ def main(argv=None):
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--count", type=int, default=1)
     p.add_argument("--device", type=str, default="auto")
+    p.add_argument("--wrap-instructions", action="store_true",
+                   help="wrap the prompt in <|user|>…<|assistant|> (for LoRA-finetuned models)")
+    p.add_argument("--stop-at-end", action="store_true",
+                   help="stop generation at the <|end|> token and strip the echoed prompt")
     args = p.parse_args(argv)
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -36,7 +40,11 @@ def main(argv=None):
     model.load_state_dict(ckpt["model"])
     model.eval()
 
-    ids = tokenizer.encode(args.prompt)[-config.block_size:]
+    prompt = args.prompt
+    if args.wrap_instructions and "<|user|>" not in prompt:
+        prompt = f"<|user|>{prompt}<|assistant|>"
+
+    ids = tokenizer.encode(prompt)[-config.block_size:]
     idx = torch.tensor([ids], dtype=torch.long, device=device)
     for i in range(args.count):
         gen = model.generate(
@@ -44,8 +52,15 @@ def main(argv=None):
             temperature=args.temperature, top_k=args.top_k,
             seed=None if args.seed is None else args.seed + i,
         )
+        text = tokenizer.decode(gen[0].tolist())
+        if args.wrap_instructions:
+            text = text[len(prompt):]
+        if args.stop_at_end:
+            cut = text.find("<|end|>")
+            if cut != -1:
+                text = text[:cut]
         print(f"--- sample {i + 1} ---")
-        print(tokenizer.decode(gen[0].tolist()))
+        print(text.strip())
         print()
 
 

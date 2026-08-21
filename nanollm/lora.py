@@ -38,9 +38,12 @@ class LoRALinear(nn.Module):
         self.weight = base.weight  # shared tensor, frozen
         self.bias = base.bias
         self.lora_dropout = nn.Dropout(dropout)
-        # A ~ (r, in) initialized with Kaiming-uniform, B ~ (out, r) zero-init
-        self.lora_A = nn.Parameter(torch.empty(r, self.in_features))
-        self.lora_B = nn.Parameter(torch.zeros(self.out_features, r))
+        # A ~ (r, in) initialized with Kaiming-uniform, B ~ (out, r) zero-init.
+        # Create on the base weight's device so injection works whether the
+        # model was moved to GPU before or after injection.
+        dev = base.weight.device
+        self.lora_A = nn.Parameter(torch.empty(r, self.in_features, device=dev))
+        self.lora_B = nn.Parameter(torch.zeros(self.out_features, r, device=dev))
         nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
         self.weight.requires_grad_(False)
         if self.bias is not None:
