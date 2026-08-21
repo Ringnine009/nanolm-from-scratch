@@ -78,7 +78,7 @@ def inject_lora(
     Returns a list of (name, module) of the injected adapters.
     """
     injected: list[tuple[str, LoRALinear]] = []
-    for name, module in model.named_modules():
+    for name, module in list(model.named_modules()):  # snapshot before mutating
         leaf_name = name.split(".")[-1]
         if leaf_name not in targets or not isinstance(module, nn.Linear):
             continue

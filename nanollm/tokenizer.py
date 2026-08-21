@@ -160,7 +160,10 @@ class BPETokenizer:
     def decode(self, ids: list[int]) -> str:
         pieces: list[bytes] = []
         for i in ids:
-            pieces.append(self.byte_decoder[i])
+            # a trained model may sample ids in the vocab budget that the
+            # tokenizer never produced (e.g. when BPE training stopped early);
+            # decode them as a placeholder instead of crashing
+            pieces.append(self.byte_decoder.get(i, b"<unk>"))
         return b"".join(pieces).decode("utf-8", errors="replace")
 
     # ------------------------------------------------------------------ #

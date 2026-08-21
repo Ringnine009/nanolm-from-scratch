@@ -24,6 +24,10 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
     device = args.device if args.device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BPETokenizer.load(args.tokenizer)
     ckpt = torch.load(args.ckpt, map_location=device, weights_only=False)

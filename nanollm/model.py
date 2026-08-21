@@ -32,8 +32,8 @@ class GPTConfig:
 
 
 def default_config() -> GPTConfig:
-    """Default pretraining configuration (~25M parameters)."""
-    return GPTConfig(vocab_size=12000, block_size=256, n_layer=8, n_head=8, n_embd=512)
+    """Default pretraining configuration (~28M parameters)."""
+    return GPTConfig(vocab_size=12000, block_size=256, n_layer=7, n_head=8, n_embd=512)
 
 
 class CausalSelfAttention(nn.Module):

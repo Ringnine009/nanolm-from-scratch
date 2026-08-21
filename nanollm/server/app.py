@@ -90,9 +90,15 @@ async def chat(req: ChatRequest):
     prompt = build_prompt(req)
     ids = runtime.tokenizer.encode(prompt)[-runtime.model.config.block_size:]
     idx = torch.tensor([ids], dtype=torch.long, device=runtime.device)
-    gen = runtime.model.generate(idx, max_new_tokens=req.max_tokens,
-                                 temperature=req.temperature, top_k=req.top_k)
-    tokens = runtime.tokenizer.decode(gen[0].tolist())[len(prompt):]
+
+    def _generate() -> str:
+        gen = runtime.model.generate(idx, max_new_tokens=req.max_tokens,
+                                     temperature=req.temperature, top_k=req.top_k)
+        return runtime.tokenizer.decode(gen[0].tolist())[len(prompt):]
+
+    # generation is CPU/GPU-bound: run it off the event loop so concurrent
+    # requests are not blocked
+    tokens = await asyncio.to_thread(_generate)
 
     async def stream():
         # emit roughly word-by-word for a smooth streaming feel

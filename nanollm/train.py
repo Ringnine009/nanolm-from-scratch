@@ -38,7 +38,7 @@ def parse_args(argv=None):
     # model
     p.add_argument("--vocab-size", type=int, default=None)
     p.add_argument("--block-size", type=int, default=256)
-    p.add_argument("--n-layer", type=int, default=8)
+    p.add_argument("--n-layer", type=int, default=7)
     p.add_argument("--n-head", type=int, default=8)
     p.add_argument("--n-embd", type=int, default=512)
     p.add_argument("--dropout", type=float, default=0.1)
@@ -113,6 +113,12 @@ def generate_samples(model, tokenizer, prompts, max_tokens, temperature, top_k, 
 
 def main(argv=None):
     args = parse_args(argv)
+    # Windows consoles default to GBK; sampled text may contain non-GBK chars
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     torch.manual_seed(args.seed)
     random.seed(args.seed)
 

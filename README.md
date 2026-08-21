@@ -95,7 +95,7 @@ Credits), with every component written by hand:
   1/√(2·N_layers));
 - sampling with temperature scaling and top-k filtering.
 
-The default config is ~25M parameters (8 layers × 512 hidden, 12k vocab,
+The default config is ~28M parameters (7 layers × 512 hidden, 12k vocab,
 256-token context). `scaled_dot_product_attention` is used as an optional fused
 kernel; the manual attention path is kept and a test verifies they match.
 
@@ -146,6 +146,10 @@ python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\a
 pip install -r requirements.txt
 # GPU wheels for NVIDIA Blackwell (RTX 5060 etc.), CUDA 12.8:
 pip install torch --index-url https://download.pytorch.org/whl/cu128
+# China mirror tip: if download.pytorch.org is slow/unreachable, grab the
+# cu128 wheel directly from https://mirrors.aliyun.com/pytorch-wheels/cu128/
+# (e.g. torch-2.11.0+cu128-cp312-cp312-win_amd64.whl) and
+# `pip install <downloaded.whl>`.
 
 # 1. build the corpus (synthetic guaranteed; Wikipedia/Gutenberg best-effort)
 python scripts/build_corpus.py

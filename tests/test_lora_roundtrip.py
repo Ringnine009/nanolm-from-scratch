@@ -39,6 +39,7 @@ def test_lora_forward_matches_manual_math():
 
     # manual: for every LoRA-wrapped linear, W' = W + (alpha/r) * B @ A
     model2 = make_model()
+    model2.eval()
     with torch.no_grad():
         for name, mod in model.named_modules():
             if hasattr(mod, "lora_A") and hasattr(mod, "lora_B"):
@@ -46,8 +47,8 @@ def test_lora_forward_matches_manual_math():
                 for part in name.split(".")[:-1]:
                     target = getattr(target, part)
                 linear = getattr(target, name.split(".")[-1])
-                scale = mod.lora_alpha / mod.lora_r
-                delta = mod.lora_B.weight.data @ mod.lora_A.weight.data * scale
+                scale = mod.alpha / mod.r
+                delta = mod.lora_B.data @ mod.lora_A.data * scale
                 linear.weight.data.add_(delta)
         y_manual = model2(x)[0]
     assert torch.allclose(y_lora, y_manual, atol=1e-5)
@@ -61,6 +62,7 @@ def test_save_load_roundtrip(tmp_path):
     save_lora(model1, path, base_ckpt="dummy.ckpt", r=4, alpha=16)
 
     model2 = make_model()
+    inject_lora(model2, r=4, alpha=16)  # load_lora expects the adapters injected
     load_lora(model2, path)
     model2.eval()
 

@@ -97,6 +97,11 @@ def answer(model, tokenizer, question, device, max_new_tokens=80, temperature=0.
 
 def main(argv=None):
     args = parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     torch.manual_seed(args.seed)
     random.seed(args.seed)
     device = args.device if args.device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")

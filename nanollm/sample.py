@@ -23,6 +23,10 @@ def main(argv=None):
     p.add_argument("--count", type=int, default=1)
     p.add_argument("--device", type=str, default="auto")
     args = p.parse_args(argv)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
     device = args.device if args.device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BPETokenizer.load(args.tokenizer)
