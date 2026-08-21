@@ -140,6 +140,15 @@ the terminal.
 
 ## Quick start
 
+One-shot pipeline (idempotent — stages skip when their outputs exist):
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/run_pipeline.ps1   # Windows
+bash scripts/run_pipeline.sh                                        # macOS/Linux
+```
+
+Or step by step:
+
 ```bash
 # 0. environment
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
