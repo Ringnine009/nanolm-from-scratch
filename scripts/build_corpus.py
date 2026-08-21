@@ -163,13 +163,30 @@ def build_synthetic(rng: random.Random) -> str:
 
     for i, species in enumerate(SPECIES):
         paras = _species_paragraphs(species, rng)
-        # each species gets 2 variants (different template draws)
+        # each species gets 2-3 variants (different template draws)
+        paras += _species_paragraphs(species, rng)
         if rng.random() < 0.5:
             paras += _species_paragraphs(species, rng)
         parts.append("\n\n".join(paras))
         parts.append("")
         parts.append(rng.choice(BODY_FILLERS))
         parts.append("")
+
+    # species comparison paragraphs (fluent connective prose)
+    parts.append("\n\nSPECIES COMPARISONS\n")
+    pool = list(SPECIES)
+    rng.shuffle(pool)
+    for i in range(min(120, len(pool) // 2)):
+        a, b = pool[2 * i], pool[2 * i + 1]
+        parts.append(
+            f"The {a['name']} and the {b['name']} are sometimes confused with each other. "
+            f"The {a['name']} is recognized by {a['cap']}, while the {b['name']} shows {b['cap']}. "
+            f"Underneath, the {a['name']} carries {a['gills']}, whereas the {b['name']} has {b['gills']}. "
+            f"Ecologically, the {a['name']} is {a['habitat']}, but the {b['name']} is {b['habitat']}. "
+            f"In the kitchen and the field the difference matters: the {a['name']} is {a['status']}, "
+            f"and the {b['name']} is {b['status']}. "
+            f"Beginners are advised to study both species side by side before collecting either."
+        )
 
     parts.append("\n\nPOISONING SYNDROMES\n")
     for syn in SYNDROMES:

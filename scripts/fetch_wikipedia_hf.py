@@ -34,15 +34,17 @@ TITLE_KEYWORDS = (
 
 DATASETS = [
     ("pszemraj/simple_wikipedia", "default", "train", "title", "text"),
-    ("wikimedia/wikipedia", "20220301.en", "train", "title", "text"),
+    ("wikimedia/wikipedia", "20231101.en", "train", "title", "text"),
 ]
 
 
 def main(argv=None):
     p = argparse.ArgumentParser()
-    p.add_argument("--max-articles", type=int, default=700)
+    p.add_argument("--max-articles", type=int, default=1500)
     p.add_argument("--max-chars", type=int, default=1_800_000)
     p.add_argument("--out", type=str, default="data/corpus/raw/wikipedia_hf.txt")
+    p.add_argument("--match-text", action="store_true",
+                   help="also keep rows whose TEXT (not only title) mentions mushrooms")
     args = p.parse_args(argv)
 
     from datasets import load_dataset
@@ -68,7 +70,8 @@ def main(argv=None):
                     skipped += 1
                     continue
                 if not any(k in title.lower() for k in TITLE_KEYWORDS):
-                    continue
+                    if not (args.match_text and ("mushroom" in text.lower() or "fungus" in text.lower())):
+                        continue
                 # skip list/disambiguation-ish pages and very short stubs
                 if text.lower().startswith(("list of", "this is a list")):
                     continue
