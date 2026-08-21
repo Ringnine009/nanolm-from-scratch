@@ -1,0 +1,10 @@
+torch>=2.7
+numpy
+regex
+fastapi>=0.110
+uvicorn[standard]
+pydantic>=2
+httpx
+requests
+matplotlib
+pytest

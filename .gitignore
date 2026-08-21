@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# secrets — never commit credentials
+.env
+*.env
+!*.env.example
+
+# training artifacts (regenerable)
+checkpoints/
+out/
+data/processed/*.bin
+data/processed/tokenizer.json
+data/corpus/raw/*.txt
+data/corpus/corpus.txt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
