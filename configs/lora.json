@@ -1,0 +1,23 @@
+{
+  "base_ckpt": "checkpoints/pretrain/best.ckpt",
+  "tokenizer": "data/processed/tokenizer.json",
+  "train_jsonl": "data/qa/qa_train.jsonl",
+  "val_jsonl": "data/qa/qa_val.jsonl",
+  "out_dir": "out/lora",
+  "device": "auto",
+  "dtype": "bf16",
+  "seed": 42,
+  "r": 8,
+  "alpha": 16.0,
+  "dropout": 0.05,
+  "batch_size": 16,
+  "block_size": 256,
+  "epochs": 60,
+  "max_minutes": 55,
+  "lr": 0.0003,
+  "min_lr": 0.00001,
+  "warmup_steps": 20,
+  "weight_decay": 0.05,
+  "grad_clip": 1.0,
+  "log_interval": 10
+}
