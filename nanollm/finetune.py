@@ -80,19 +80,13 @@ def evaluate(model, loader, device, dtype) -> float:
 
 @torch.no_grad()
 def answer(model, tokenizer, question, device, max_new_tokens=80, temperature=0.7, top_k=40):
-    model.eval()
-    prompt = f"<|user|>{question}<|assistant|>"
-    ids = tokenizer.encode(prompt)[-model.config.block_size:]
-    idx = torch.tensor([ids], dtype=torch.long, device=device)
-    gen = model.generate(idx, max_new_tokens=max_new_tokens, temperature=temperature, top_k=top_k)
-    text = tokenizer.decode(gen[0].tolist())
-    model.train()
-    # strip the echoed prompt, cut at the end token if present
-    answer_text = text[len(prompt):]
-    cut = answer_text.find("<|end|>")
-    if cut != -1:
-        answer_text = answer_text[:cut]
-    return answer_text.strip()
+    """Generate a cleaned answer for a QA prompt (unified generation module)."""
+    from nanollm.generation import generate_answer
+    return generate_answer(
+        model, tokenizer, question,
+        max_new_tokens=max_new_tokens, temperature=temperature, top_k=top_k,
+        repetition_penalty=1.15, no_repeat_ngram_size=4,
+    )
 
 
 def main(argv=None):

@@ -3,7 +3,12 @@
 Two sources:
   1. Programmatically generated pairs from ``kb.py`` (species fact sheets),
      phrased with varied question templates and full-sentence answers.
-  2. Manually written, polished pairs (the 'manual proofreading' pass).
+  2. A small set (~34) of hand-written pairs, authored by the project
+     maintainer and spot-checked for consistency (NOT a specialist review).
+
+Honest note: the template-generated pairs are *not* individually reviewed by a
+mushroom expert; a small sample was spot-checked for wording consistency only.
+Facts originate from the public-reference knowledge base in ``kb.py``.
 
 Output: data/qa/qa_train.jsonl and data/qa/qa_val.jsonl (90/10 split).
 
@@ -148,7 +153,8 @@ def generate_pairs() -> list[dict]:
 
 
 # --------------------------------------------------------------------- #
-# manually written pairs (proofread pass)
+# hand-written pairs (authored by the maintainer; spot-checked, not
+# specialist-reviewed)
 # --------------------------------------------------------------------- #
 MANUAL_PAIRS = [
     {"question": "What is the most important rule of mushroom foraging?",

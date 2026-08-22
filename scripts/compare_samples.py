@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT))
 
 import torch
 
+from nanollm.generation import generate_answer
 from nanollm.model import GPT, GPTConfig
 from nanollm.tokenizer import BPETokenizer
 
@@ -39,24 +40,11 @@ def load_model(ckpt_path: str, tokenizer_path: str, device: str):
 @torch.no_grad()
 def answer(model, tokenizer, question: str, device: str, max_new_tokens: int = 110,
            temperature: float = 0.7, top_k: int = 40) -> str:
-    prompt = f"<|user|>{question}<|assistant|>"
-    ids = tokenizer.encode(prompt)[-model.config.block_size:]
-    idx = torch.tensor([ids], dtype=torch.long, device=device)
-    end_id = tokenizer.special_to_id.get("<|end|>")
-    generated: list[int] = []
-    cur = idx
-    for _ in range(max_new_tokens):
-        nxt = model.generate(cur, max_new_tokens=1, temperature=temperature, top_k=top_k)
-        nid = nxt[0, -1].item()
-        generated.append(nid)
-        cur = nxt
-        if nid == end_id:
-            break
-    text = tokenizer.decode(generated)
-    cut = text.find("<|end|>")
-    if cut != -1:
-        text = text[:cut]
-    return text.strip()
+    return generate_answer(
+        model, tokenizer, question,
+        max_new_tokens=max_new_tokens, temperature=temperature, top_k=top_k,
+        repetition_penalty=1.15, no_repeat_ngram_size=4,
+    )
 
 
 def main(argv=None):

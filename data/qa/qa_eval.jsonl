@@ -1,0 +1,44 @@
+{"question": "Would it be safe to eat the death cap?", "answer": "No. The death cap is deadly poisonous and should never be eaten.", "keywords": ["poisonous", "deadly", "amatoxin"], "polarity": "no"}
+{"question": "Could a person safely eat the destroying angel?", "answer": "No, the destroying angel is deadly poisonous.", "keywords": ["poisonous", "deadly", "amatoxin"], "polarity": "no"}
+{"question": "Is the fly agaric something you can put in a meal?", "answer": "No, the fly agaric is poisonous and causes confusion and hallucinations.", "keywords": ["poisonous", "muscimol", "ibotenic"], "polarity": "no"}
+{"question": "Can the common inkcap be eaten together with beer or wine?", "answer": "No. It contains coprine and reacts with alcohol, causing flushing and nausea.", "keywords": ["coprine", "alcohol"], "polarity": "no"}
+{"question": "Are golden chanterelles good to eat?", "answer": "Yes, the golden chanterelle is a choice edible mushroom.", "keywords": ["edible", "choice"], "polarity": "yes"}
+{"question": "Is the porcini a prized edible mushroom?", "answer": "Yes, the porcini is one of the most sought-after edible mushrooms.", "keywords": ["edible", "prized", "choice"], "polarity": "yes"}
+{"question": "Can morels be eaten raw?", "answer": "No. Morels must be thoroughly cooked; raw or undercooked ones cause nausea and cramps.", "keywords": ["cook", "raw", "nausea"], "polarity": "no"}
+{"question": "Is the green-spored parasol safe to eat?", "answer": "No, it is poisonous and causes violent vomiting and diarrhea.", "keywords": ["poisonous", "vomiting"], "polarity": "no"}
+{"question": "Are young giant puffballs edible when the flesh is white?", "answer": "Yes, young puffballs with pure white flesh are edible.", "keywords": ["white", "edible"], "polarity": "yes"}
+{"question": "Has the yellow knight been found dangerous to eat?", "answer": "No. It is now linked to rhabdomyolysis and is considered poisonous.", "keywords": ["rhabdomyolysis", "poisonous"], "polarity": "no"}
+{"question": "What color are the gills of the death cap?", "answer": "The gills are white.", "keywords": ["white"], "polarity": null}
+{"question": "What grows at the base of the destroying angel's stem?", "answer": "A cup-shaped volva.", "keywords": ["volva"], "polarity": null}
+{"question": "How does the cap of a false morel look?", "answer": "It is wrinkled and brain-like, not honeycombed.", "keywords": ["wrinkled", "brain"], "polarity": null}
+{"question": "What distinguishes real chanterelle ridges from true gills?", "answer": "The ridges are blunt and forked, not sharp blades.", "keywords": ["forked", "blunt", "ridge"], "polarity": null}
+{"question": "Which spore print color does Chlorophyllum molybdites leave?", "answer": "A green spore print.", "keywords": ["green"], "polarity": null}
+{"question": "What is the ring on an Amanita stem called?", "answer": "It is called the annulus.", "keywords": ["annulus", "ring"], "polarity": null}
+{"question": "What color is the pore surface of the bitter bolete?", "answer": "The pores are pinkish.", "keywords": ["pink"], "polarity": null}
+{"question": "Which feature separates puffballs from Amanita eggs?", "answer": "Cut them open: pure white flesh means puffball; a developing cap and gills means Amanita.", "keywords": ["white", "flesh", "cut"], "polarity": null}
+{"question": "Under which trees does the porcini typically grow?", "answer": "It grows with oak, beech, birch, spruce and pine.", "keywords": ["oak", "beech", "birch", "spruce", "pine"], "polarity": null}
+{"question": "On what substrate do oyster mushrooms grow?", "answer": "They grow on dead broadleaf wood.", "keywords": ["wood", "dead"], "polarity": null}
+{"question": "Where would you find a jack-o'-lantern mushroom?", "answer": "At the base of oaks, on stumps and buried wood.", "keywords": ["wood", "stump"], "polarity": null}
+{"question": "In which season do morels appear?", "answer": "Morels fruit in spring.", "keywords": ["spring"], "polarity": null}
+{"question": "Where does the golden chanterelle grow?", "answer": "On the ground in mossy woodland, in association with trees.", "keywords": ["ground", "soil"], "polarity": null}
+{"question": "What tree is chaga found on?", "answer": "Chaga grows on birch trees.", "keywords": ["birch"], "polarity": null}
+{"question": "Where do truffles grow?", "answer": "Underground, in a mycorrhizal partnership with tree roots.", "keywords": ["underground", "below"], "polarity": null}
+{"question": "What is the typical habitat of the autumn skullcap?", "answer": "It grows on rotting conifer and hardwood logs and stumps.", "keywords": ["wood", "log", "stump"], "polarity": null}
+{"question": "How long does it take for amatoxin symptoms to appear?", "answer": "Symptoms appear 6 to 24 hours after eating.", "keywords": ["6", "24", "hours", "delayed"], "polarity": null}
+{"question": "What does orellanine damage?", "answer": "It attacks the kidneys, often causing failure.", "keywords": ["kidney"], "polarity": null}
+{"question": "Which syndrome follows eating the fool's funnel?", "answer": "Muscarine syndrome, with sweating, salivation and blurred vision.", "keywords": ["muscarine", "sweating"], "polarity": null}
+{"question": "What happens if alcohol is drunk after eating the common inkcap?", "answer": "Flushing, sweating, nausea and palpitations due to coprine.", "keywords": ["flush", "sweat", "nausea", "coprine"], "polarity": null}
+{"question": "Which organ does alpha-amanitin destroy?", "answer": "It destroys the liver.", "keywords": ["liver"], "polarity": null}
+{"question": "What is the first phase of amatoxin poisoning?", "answer": "Violent cramps, vomiting and watery diarrhea.", "keywords": ["vomit", "diarrhea", "cramp"], "polarity": null}
+{"question": "Which mushrooms cause the delayed kidney-failure syndrome?", "answer": "The deadly webcaps, which contain orellanine.", "keywords": ["cortinarius", "webcap", "orellanine"], "polarity": null}
+{"question": "What should be done when mushroom poisoning is suspected?", "answer": "Contact a poison control center immediately and seek medical care.", "keywords": ["poison control", "medical", "immediately"], "polarity": null}
+{"question": "Your child ate an unknown mushroom in the garden. What should you do first?", "answer": "Remove any remaining mushroom, save a sample, and call a poison control center immediately — do not wait for symptoms.", "keywords": ["poison control", "sample", "immediately"], "polarity": null}
+{"question": "Does cooking destroy amatoxins?", "answer": "No. Amatoxins survive boiling, frying and drying.", "keywords": ["no", "survive", "boiling"], "polarity": null}
+{"question": "Is a silver spoon a reliable test for poisonous mushrooms?", "answer": "No. That is a myth; only careful identification is reliable.", "keywords": ["myth", "no", "identify"], "polarity": null}
+{"question": "Why must morels always be cooked thoroughly?", "answer": "Raw morels contain heat-sensitive compounds that cause nausea and vomiting.", "keywords": ["cook", "heat", "nausea"], "polarity": null}
+{"question": "What is the safest way to enjoy mushrooms without identification risk?", "answer": "Grow your own from known spawn, or buy cultivated mushrooms.", "keywords": ["cultivate", "grow", "supermarket"], "polarity": null}
+{"question": "Which mushroom causes the most poisonings in North America?", "answer": "The green-spored parasol (Chlorophyllum molybdites), which grows on lawns.", "keywords": ["green-spored", "chlorophyllum", "parasol"], "polarity": null}
+{"question": "What is the number one rule of foraging?", "answer": "Never eat a mushroom unless you are 100% certain of its identity.", "keywords": ["certain", "identify", "never"], "polarity": null}
+{"question": "Can animals eating a mushroom prove it is safe for humans?", "answer": "No. Animal metabolism differs from ours; only identification is reliable.", "keywords": ["no", "metabolism", "different"], "polarity": null}
+{"question": "Which part of the mushroom is the volva and why does it matter?", "answer": "The volva is the cup at the base of the stem; it marks the deadly Amanita genus.", "keywords": ["base", "amanita", "deadly"], "polarity": null}
+{"question": "What does a spore print reveal and how is it taken?", "answer": "It reveals the spore color; lay the cap gill-side down on paper and wait a few hours.", "keywords": ["spore", "paper", "color"], "polarity": null}

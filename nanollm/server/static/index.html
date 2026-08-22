@@ -5,11 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NanoLM · Offline Mushroom-Safety Chat</title>
 <style>
-  :root { --bg:#0e1116; --panel:#161b22; --line:#2d333b; --fg:#e6edf3; --mut:#8b949e; --acc:#3fb950; }
+  :root {
+    --bg:#fafbfc;        /* canvas */
+    --panel:#ffffff;     /* cards */
+    --panel-2:#f4f5f7;   /* subtle fill */
+    --line:rgba(0,0,0,0.08);
+    --fg:#17181c;        /* body text */
+    --mut:#6d737c;       /* secondary text */
+    --acc:#059669;       /* accent (emerald) */
+  }
   * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif;
+  body { margin:0; font:15px/1.55 -apple-system, "Segoe UI", Roboto, "PingFang SC", sans-serif;
          background:var(--bg); color:var(--fg); }
-  header { padding:18px 24px; border-bottom:1px solid var(--line);
+  header { padding:18px 24px; border-bottom:1px solid var(--line); background:var(--panel);
            display:flex; align-items:baseline; gap:14px; }
   header h1 { font-size:18px; margin:0; letter-spacing:.3px; }
   header span { color:var(--mut); font-size:13px; }
@@ -19,22 +27,25 @@
   .msg .who { flex:0 0 64px; font-weight:600; font-size:13px; color:var(--mut); }
   .msg.user .who { color:var(--acc); }
   .msg .body { white-space:pre-wrap; overflow-wrap:anywhere; background:var(--panel);
-               border:1px solid var(--line); border-radius:10px; padding:10px 14px; flex:1; }
-  .msg.user .body { border-color:#2ea04355; }
+               border:1px solid var(--line); border-radius:10px; padding:10px 14px; flex:1;
+               box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+  .msg.user .body { background:var(--panel-2); }
   .caret { display:inline-block; width:8px; height:15px; background:var(--acc);
            vertical-align:-2px; animation:blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity:0; } }
   #presets { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
   #presets button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
                     border-radius:999px; padding:6px 12px; cursor:pointer; font-size:13px; }
-  #presets button:hover { border-color:var(--acc); }
-  #inputbar { position:fixed; left:0; right:0; bottom:0; background:var(--bg);
+  #presets button:hover { border-color:var(--acc); color:var(--acc); }
+  #inputbar { position:fixed; left:0; right:0; bottom:0; background:var(--panel);
               border-top:1px solid var(--line); padding:12px 16px; }
   #inputbar > div { max-width:820px; margin:0 auto; display:flex; gap:10px; }
-  #input { flex:1; background:var(--panel); color:var(--fg); border:1px solid var(--line);
+  #input { flex:1; background:var(--panel-2); color:var(--fg); border:1px solid var(--line);
            border-radius:10px; padding:11px 14px; font:inherit; resize:none; }
-  #send { background:var(--acc); border:0; color:#06120a; font-weight:600;
+  #input:focus { outline:none; border-color:var(--acc); }
+  #send { background:var(--acc); border:0; color:#ffffff; font-weight:600;
           border-radius:10px; padding:0 22px; cursor:pointer; }
+  #send:hover:not(:disabled) { filter:brightness(1.06); }
   #send:disabled { opacity:.5; cursor:default; }
   footer { color:var(--mut); font-size:12px; text-align:center; margin-top:24px; }
 </style>
@@ -84,7 +95,8 @@ async function ask(prompt) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt, max_tokens: 160, temperature: 0.7, top_k: 40}),
+      body: JSON.stringify({prompt, max_tokens: 160, temperature: 0.7, top_k: 40,
+                            repetition_penalty: 1.15, no_repeat_ngram_size: 4}),
     });
     const reader = res.body.getReader();
     const decoder = new TextDecoder();

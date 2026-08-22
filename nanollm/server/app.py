@@ -15,15 +15,16 @@ import argparse
 import asyncio
 import json
 import sys
+import threading
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Optional
 
 import torch
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from nanollm.generation import END_MARKER, drop_leading_junk, generate_tokens
 from nanollm.model import GPT, GPTConfig
 from nanollm.tokenizer import BPETokenizer
 
@@ -35,6 +36,8 @@ class ChatRequest(BaseModel):
     max_tokens: int = Field(128, ge=1, le=1024)
     temperature: float = Field(0.7, ge=0.0, le=2.0)
     top_k: int = Field(40, ge=1, le=500)
+    repetition_penalty: float = Field(1.15, ge=1.0, le=3.0)
+    no_repeat_ngram_size: int = Field(4, ge=0, le=16)
     wrap_instructions: bool = Field(True, description="wrap prompt in <|user|>/<|assistant|>")
 
 
@@ -88,37 +91,44 @@ async def chat(req: ChatRequest):
         return StreamingResponse(iter(["event: error\ndata: {\"error\": \"model not loaded\"}\n\n"]),
                                  media_type="text/event-stream")
     prompt = build_prompt(req)
-    ids = runtime.tokenizer.encode(prompt)[-runtime.model.config.block_size:]
-    idx = torch.tensor([ids], dtype=torch.long, device=runtime.device)
-    end_id = runtime.tokenizer.special_to_id.get("<|end|>")
+    stop_ids = {runtime.tokenizer.special_to_id.get(END_MARKER, -1)}
+    stop_ids.discard(-1)
 
-    def _generate() -> str:
-        generated: list[int] = []
-        cur = idx
-        for _ in range(req.max_tokens):
-            nxt = runtime.model.generate(cur, max_new_tokens=1,
-                                         temperature=req.temperature, top_k=req.top_k)
-            nid = nxt[0, -1].item()
-            generated.append(nid)
-            cur = nxt
-            if nid == end_id:
-                break
-        text = runtime.tokenizer.decode(generated)
-        cut = text.find("<|end|>")
-        if cut != -1:
-            text = text[:cut]
-        return text
+    # True token-level streaming: the model runs in a worker thread and each
+    # generated token is delivered to the SSE stream as soon as it is produced
+    # (via call_soon_threadsafe so the event loop is never blocked).
+    queue: asyncio.Queue = asyncio.Queue()
 
-    # generation is CPU/GPU-bound: run it off the event loop so concurrent
-    # requests are not blocked
-    tokens = await asyncio.to_thread(_generate)
+    def worker(loop: asyncio.AbstractEventLoop):
+        try:
+            stream = drop_leading_junk(generate_tokens(
+                runtime.model, runtime.tokenizer, prompt,
+                max_new_tokens=req.max_tokens,
+                temperature=req.temperature, top_k=req.top_k,
+                repetition_penalty=req.repetition_penalty,
+                no_repeat_ngram_size=req.no_repeat_ngram_size,
+                stop_ids=stop_ids,
+            ))
+            for tok in stream:
+                loop.call_soon_threadsafe(queue.put_nowait, ("token", tok))
+        except Exception as exc:  # surface generation errors to the client
+            loop.call_soon_threadsafe(queue.put_nowait, ("error", str(exc)))
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
+
+    loop = asyncio.get_running_loop()
+    thread = threading.Thread(target=worker, args=(loop,), daemon=True)
+    thread.start()
 
     async def stream():
-        # emit roughly word-by-word for a smooth streaming feel
-        chunks = tokens.split(" ")
-        for i, ch in enumerate(chunks):
-            yield f"data: {json.dumps({'token': ch + (' ' if i < len(chunks) - 1 else '')}, ensure_ascii=False)}\n\n"
-            await asyncio.sleep(0.01)
+        while True:
+            kind, payload = await queue.get()
+            if kind == "done":
+                break
+            if kind == "error":
+                yield f"data: {json.dumps({'error': payload}, ensure_ascii=False)}\n\n"
+                break
+            yield f"data: {json.dumps({'token': payload}, ensure_ascii=False)}\n\n"
         yield f"data: {json.dumps({'token': '[DONE]'})}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream",

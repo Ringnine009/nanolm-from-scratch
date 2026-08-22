@@ -52,7 +52,7 @@ nanollm/
 │   ├── kb.py            # mushroom-safety knowledge base (species, toxins, rules…)
 │   ├── build_corpus.py  # synthetic corpus + best-effort Wikipedia/Gutenberg fetch
 │   ├── fetch_wikipedia_hf.py  # mushroom articles via HuggingFace datasets mirror
-│   ├── build_qa.py      # instruction QA set (generated + manually proofread)
+│   ├── build_qa.py      # instruction QA set (template-generated + ~34 hand-written, spot-checked)
 │   ├── prepare_data.py  # train tokenizer, tokenize corpus → train.bin/val.bin
 │   └── plot_loss.py     # loss-curve figure from the CSV logs
 ├── data/
@@ -205,17 +205,24 @@ save/load/merge round-trips and trainability; FastAPI/SSE API behaviour.
 ## Results
 
 See [`docs/results.md`](docs/results.md) for the training curves, loss
-numbers and sample text before/after LoRA fine-tuning. Summary figures are in
+numbers, a held-out evaluation (44 QA items, keyword-hit accuracy) and sample
+text before/after LoRA fine-tuning. Summary figures are in
 `out/figures/loss_curve.png`.
 
 ## Known limitations
 
-- Trained on a tiny domain corpus (~0.15–2 MB); the model is a *demonstration*
+- Trained on a tiny domain corpus (~1.5 MB); the model is a *demonstration*
   of mechanics, not a capable assistant. Answers are often plausible but
   unreliable.
-- English-only; the QA set is small (~450 pairs).
+- Held-out evaluation (44 items, disjoint from fine-tuning) scores **38.6%
+  keyword-hit (any expected keyword)** and 9.1% all-keywords — edibility
+  yes/no questions are answered best (~80%), specific factual recall is weak.
+  See `docs/results.md`.
+- English-only; the QA set is small (~450 pairs) and mostly template-generated
+  (only ~34 hand-written, spot-checked — not specialist-reviewed).
 - The pretrained model is sensitive to sampling settings; long generations can
-  drift off-topic.
+  drift off-topic (mitigated by repetition penalty + no-repeat n-gram in the
+  unified generation module).
 - **Never use outputs for real mushroom identification or medical decisions.**
 
 ## Credits & acknowledgements

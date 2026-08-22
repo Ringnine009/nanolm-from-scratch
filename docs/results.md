@@ -22,6 +22,10 @@ via the README commands, they are not committed).
 - **LoRA fine-tuning:** r=8, α=16 on all attention+MLP projections
   (28 adapters, 0.459M trainable = **1.60%** of the model), lr 3e-4,
   QA set 442 train / 49 val pairs, 1,680 steps ≈ 3 min.
+  *Honest note:* the QA set is mostly **template-generated** from `kb.py`
+  (~410 pairs) plus ~34 **hand-written** pairs (spot-checked by the
+  maintainer, **not** a specialist review). The template-generated pairs were
+  not individually fact-checked against a mushroom expert.
 
 ## Pretraining loss curve
 
@@ -86,6 +90,38 @@ failure. Contact a poison control center immediately if it is eaten.
 - "What should I do if someone eats a poisonous mushroom?" → *"…violent
   vomiting and diarrhea a few hours after eating. The toxins involved are
   gastrointestinal irritants. Seek medical help promptly if symptoms appear."*
+
+## Held-out evaluation (merged model)
+
+A **disjoint held-out set** of 44 mushroom-safety QA items was built by hand
+(`scripts/build_eval_set.py`): every question is phrased differently from all
+491 train/val questions, and the word-set Jaccard similarity to the nearest
+training question is < 0.75 (checked programmatically in `tests/test_eval.py`).
+Answers are generated with the unified generation module (temp 0.7, top-k 40,
+repetition penalty 1.15, no-repeat 4-gram, `<|end|>` stop, seeded per item).
+Scoring is keyword-based (any / all expected keywords appear, case-insensitive).
+
+| metric | value |
+|--------|-------|
+| **hit (any expected keyword)** | **38.6%** (17/44) |
+| **hit (all expected keywords)** | **9.1%** (4/44) |
+
+Per category (hit_any / hit_all):
+
+| category | n | hit_any | hit_all |
+|----------|---|---------|---------|
+| edibility yes/no | 10 | 80.0% | 20.0% |
+| identification | 8 | 12.5% | 12.5% |
+| habitat | 8 | 25.0% | 0.0% |
+| symptoms | 8 | 37.5% | 12.5% |
+| first-aid / general | 10 | 30.0% | 0.0% |
+
+Honest reading: the LoRA-finetuned model reliably answers **yes/no edibility**
+questions (80% contain the expected fact), but **specific factual recall is
+weak** (e.g. "what color are the gills", "which toxin") — 27/44 answers
+contain none of the expected keywords. The model is a mechanism/method
+demonstration, not a reliable QA system. Full per-item results:
+`out/eval_results.json` (regenerate with `python scripts/evaluate.py`).
 
 ## Reproduce
 
