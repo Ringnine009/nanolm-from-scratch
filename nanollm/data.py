@@ -54,7 +54,9 @@ class CorpusBatcher:
     def get_batch(self, split: str, rng: random.Random) -> tuple[torch.Tensor, torch.Tensor]:
         data = self._tokens(split)
         total = len(data)
-        ix = torch.randint(0, total - self.block_size, (self.batch_size,), generator=None)
+        # sample offsets with the caller-provided RNG so batch selection is
+        # reproducible for a given seed (the caller may pass a fixed Random(0))
+        ix = torch.tensor([rng.randrange(0, total - self.block_size) for _ in range(self.batch_size)])
         x = torch.stack([torch.from_numpy(data[i : i + self.block_size].astype(np.int64)) for i in ix])
         y = torch.stack([torch.from_numpy(data[i + 1 : i + 1 + self.block_size].astype(np.int64)) for i in ix])
         return x.to(self.device), y.to(self.device)

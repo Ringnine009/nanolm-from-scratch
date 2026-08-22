@@ -1,10 +1,16 @@
 """Best-effort: fetch mushroom-related Wikipedia articles via HuggingFace
-datasets (uses HF_ENDPOINT=https://hf-mirror.com when set) and save them as
-plain text for the corpus.
+datasets and save them as plain text for the corpus.
+
+The HF endpoint is read from the ``HF_ENDPOINT`` environment variable and
+defaults to https://hf-mirror.com (a China-friendly mirror).
+
+Dependency note: this optional script needs the ``datasets`` package, which is
+NOT part of the base requirements (``pip install datasets`` manually if you
+want to run it).
 
 Two candidate datasets (tried in order):
   - pszemraj/simple_wikipedia (Simple English Wikipedia, Apache-2.0, small)
-  - wikimedia/wikipedia config 20220301.en (CC BY-SA 4.0, large)
+  - wikimedia/wikipedia config 20231101.en (CC BY-SA 4.0, large)
 
 Only rows whose title matches mushroom/fungus keywords are kept, capped at
 ``--max-articles`` / ``--max-chars``.
@@ -22,6 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# use the mirror only when the user has not set HF_ENDPOINT explicitly
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 TITLE_KEYWORDS = (

@@ -54,14 +54,53 @@ nanollm/
 │   ├── fetch_wikipedia_hf.py  # mushroom articles via HuggingFace datasets mirror
 │   ├── build_qa.py      # instruction QA set (template-generated + ~34 hand-written, spot-checked)
 │   ├── prepare_data.py  # train tokenizer, tokenize corpus → train.bin/val.bin
+│   ├── evaluate.py      # held-out eval (44 QA items) → keyword-hit accuracy
 │   └── plot_loss.py     # loss-curve figure from the CSV logs
 ├── data/
 │   ├── corpus/          # corpus sources (see NOTICE.md for licensing)
-│   └── qa/              # qa_train.jsonl / qa_val.jsonl
-├── configs/             # default pretrain / lora configs
-├── tests/               # pytest suite (tokenizer, model, sampling, LoRA, smoke, API)
-└── docs/results.md      # training results, loss curves, before/after samples
+│   └── qa/              # qa_train.jsonl / qa_val.jsonl / qa_eval.jsonl
+├── tests/               # pytest suite (tokenizer, model, generation, LoRA, eval, API)
+├── docs/
+│   ├── assets/          # committed figures (loss_curve.png)
+│   └── results.md       # training results, loss curves, eval, before/after samples
 ```
+
+## Architecture
+
+```
+                    ┌──────────────────────────────────────────────┐
+  corpus.txt        │  scripts/build_corpus.py (+fetch_wikipedia_hf.py)
+  (1.5 MB, mush-    │  kb.py knowledge base + Wikipedia extracts
+   room safety)     └──────────────────┬───────────────────────────┘
+                                      ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  scripts/prepare_data.py — train byte-level BPE (12k vocab) │
+  │  + tokenize → train.bin / val.bin (373k tokens)             │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  nanollm.train — GPT pretraining (28.3M params)             │
+  │  AdamW · warmup+cosine · grad clip · bf16 · ckpt/resume     │
+  │  → out/pretrain/best.ckpt  (best val 5.02 @ step 1200)      │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  nanollm.finetune — self-implemented LoRA (r=8, α=16)       │
+  │  frozen base + low-rank adapters on attention/MLP           │
+  │  → out/lora/lora_best.pt  (1.8 MB, 1.6% trainable)          │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  nanollm.merge → checkpoints/merged.pt (single 108 MB model)│
+  └──────────────────────────────┬──────────────────────────────┘
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  serving: nanollm.server.app (FastAPI + SSE, token-level     │
+  │  streaming, web UI)  ·  nanollm.chat (CLI)  ·  nanollm.sample│
+  └─────────────────────────────────────────────────────────────┘
+```
+
+Chat UI (light theme): [`docs/assets/chat_ui.png`](docs/assets/chat_ui.png)
 
 ## How the pieces work
 
@@ -169,12 +208,26 @@ python scripts/build_corpus.py --no-download # re-merge after fetching
 python scripts/prepare_data.py --vocab-size 12000
 
 # 3. pretrain the GPT (time-boxed; resumes from latest.ckpt automatically)
+#    (this exact configuration produced the results in docs/results.md:
+#     28.3M params, 6,000 steps, best val 5.02, ~28 min on an RTX 5060)
 python -m nanollm.train --data-dir data/processed --out-dir out/pretrain \
-    --max-minutes 110 --batch-size 32 --block-size 256
+    --tokenizer data/processed/tokenizer.json --max-steps 6000 --max-minutes 110 \
+    --batch-size 32 --block-size 256 --n-layer 7 --n-head 8 --n-embd 512 \
+    --dropout 0.1 --lr 6e-4 --min-lr 6e-5 --warmup-steps 300 --weight-decay 0.1 \
+    --grad-clip 1.0 --eval-interval 300 --eval-iters 20 --log-interval 50 \
+    --sample-interval 600
 
-# 4. LoRA instruction fine-tuning
+# 4. LoRA instruction fine-tuning (491 QA pairs: 442 train / 49 val;
+#    r=8, alpha=16, only 1.6% of params trainable, ~3 min, val 4.03 -> 0.84)
 python scripts/build_qa.py
-python -m nanollm.finetune --base-ckpt out/pretrain/best.ckpt --out-dir out/lora
+python -m nanollm.finetune --base-ckpt out/pretrain/best.ckpt --out-dir out/lora \
+    --tokenizer data/processed/tokenizer.json --train-jsonl data/qa/qa_train.jsonl \
+    --val-jsonl data/qa/qa_val.jsonl --batch-size 16 --block-size 256 --epochs 60 \
+    --max-minutes 55 --r 8 --alpha 16 --lr 3e-4 --warmup-steps 20 --log-interval 10
+
+# 4b. (optional) held-out evaluation: 44 disjoint QA items, keyword-hit accuracy
+python scripts/build_eval_set.py
+python scripts/evaluate.py
 
 # 5. merge and serve
 python -m nanollm.merge --base-ckpt out/pretrain/best.ckpt --lora out/lora/lora_best.pt \
@@ -188,7 +241,11 @@ Sampling standalone:
 
 ```bash
 python -m nanollm.sample --ckpt out/pretrain/best.ckpt \
-    --prompt "The death cap mushroom" --max-new-tokens 100 --temperature 0.8 --top-k 40
+    --prompt "The death cap mushroom" --max-new-tokens 100 --temperature 0.8 --top-k 40 \
+    --repetition-penalty 1.15 --no-repeat-ngram-size 4
+# LoRA-finetuned model: wrap in the instruction format for clean answers:
+python -m nanollm.sample --ckpt checkpoints/merged.pt \
+    --prompt "Is the death cap mushroom poisonous?" --wrap-instructions
 ```
 
 ## Tests
@@ -206,8 +263,8 @@ save/load/merge round-trips and trainability; FastAPI/SSE API behaviour.
 
 See [`docs/results.md`](docs/results.md) for the training curves, loss
 numbers, a held-out evaluation (44 QA items, keyword-hit accuracy) and sample
-text before/after LoRA fine-tuning. Summary figures are in
-`out/figures/loss_curve.png`.
+text before/after LoRA fine-tuning. The combined loss-curve figure is
+[`docs/assets/loss_curve.png`](docs/assets/loss_curve.png).
 
 ## Known limitations
 
@@ -218,7 +275,8 @@ text before/after LoRA fine-tuning. Summary figures are in
   keyword-hit (any expected keyword)** and 9.1% all-keywords — edibility
   yes/no questions are answered best (~80%), specific factual recall is weak.
   See `docs/results.md`.
-- English-only; the QA set is small (~450 pairs) and mostly template-generated
+- English-only; the QA set is small (491 pairs: 442 train / 49 val) and mostly
+  template-generated
   (only ~34 hand-written, spot-checked — not specialist-reviewed).
 - The pretrained model is sensitive to sampling settings; long generations can
   drift off-topic (mitigated by repetition penalty + no-repeat n-gram in the

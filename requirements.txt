@@ -8,3 +8,6 @@ httpx
 requests
 matplotlib
 pytest
+
+# Optional — only needed for scripts/fetch_wikipedia_hf.py (corpus enrichment):
+#   pip install datasets
