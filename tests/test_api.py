@@ -16,6 +16,8 @@ def client(tiny_checkpoint, tiny_tokenizer):
         yield c
     runtime.model = None
     runtime.tokenizer = None
+    runtime.base_model = None
+    runtime._comparison = None
 
 
 def test_health(client):
@@ -56,3 +58,22 @@ def test_index_serves_ui(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "NanoLM" in r.text
+    # the v4 UI ships: tabs, generation-parameter sliders, comparison pane
+    assert "Before/After fine-tuning" in r.text
+    assert "Generation parameters" in r.text
+    assert "sl-temperature" in r.text
+
+
+def test_comparison_returns_structured_json(client):
+    # no --base-ckpt in tests -> fallback examples from docs/results.md
+    r = client.get("/api/comparison")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"question", "before", "after", "source"}
+    assert body["question"]
+    assert len(body["before"]) > 20
+    assert len(body["after"]) > 20
+    assert "checkpoints" in body["source"] or "results.md" in body["source"]
+    # cached on repeat calls
+    r2 = client.get("/api/comparison")
+    assert r2.json() == body

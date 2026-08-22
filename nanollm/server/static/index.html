@@ -21,8 +21,20 @@
            display:flex; align-items:baseline; gap:14px; }
   header h1 { font-size:18px; margin:0; letter-spacing:.3px; }
   header span { color:var(--mut); font-size:13px; }
-  main { max-width:820px; margin:0 auto; padding:24px 16px 120px; }
-  #chat { min-height:300px; }
+  main { max-width:860px; margin:0 auto; padding:24px 16px 150px; }
+
+  /* tabs */
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:18px; }
+  .tabs button { background:none; border:0; border-bottom:2px solid transparent;
+                 padding:8px 14px; font-size:14px; font-weight:600; color:var(--mut);
+                 cursor:pointer; border-radius:6px 6px 0 0; }
+  .tabs button:hover { color:var(--fg); }
+  .tabs button.active { color:var(--acc); border-bottom-color:var(--acc); }
+  .tabpane { display:none; }
+  .tabpane.active { display:block; }
+
+  /* chat */
+  #chat { min-height:280px; }
   .msg { margin:14px 0; display:flex; gap:10px; }
   .msg .who { flex:0 0 64px; font-weight:600; font-size:13px; color:var(--mut); }
   .msg.user .who { color:var(--acc); }
@@ -37,9 +49,40 @@
   #presets button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
                     border-radius:999px; padding:6px 12px; cursor:pointer; font-size:13px; }
   #presets button:hover { border-color:var(--acc); color:var(--acc); }
+
+  /* generation parameters panel */
+  details.params { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+                   margin:16px 0; overflow:hidden; }
+  details.params summary { cursor:pointer; padding:10px 14px; font-size:13px; font-weight:600;
+                           color:var(--mut); user-select:none; list-style:none; }
+  details.params summary::-webkit-details-marker { display:none; }
+  details.params summary::after { content:"▾"; float:right; color:var(--mut); }
+  details.params:not([open]) summary::after { content:"▸"; }
+  details.params .grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 28px;
+                         padding:2px 16px 14px; }
+  .param { display:flex; flex-direction:column; gap:6px; padding:6px 0; }
+  .param .label { display:flex; justify-content:space-between; font-size:13px; }
+  .param .label b { color:var(--acc); font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; accent-color:var(--acc); cursor:pointer; }
+
+  /* comparison */
+  .cmp-q { font-size:15px; font-weight:600; margin:6px 0 14px; }
+  .cmp-cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px) { .cmp-cards { grid-template-columns:1fr; } }
+  .cmp-card { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+              padding:14px 16px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+  .cmp-card.after { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc); }
+  .cmp-card .h { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .cmp-card .h b { font-size:13px; text-transform:uppercase; letter-spacing:.4px; color:var(--mut); }
+  .badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
+           background:var(--acc); color:#fff; }
+  .cmp-card .body { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; color:var(--fg); }
+  .cmp-src { color:var(--mut); font-size:12px; margin-top:14px; }
+  #cmp-loading { color:var(--mut); font-size:14px; }
+
   #inputbar { position:fixed; left:0; right:0; bottom:0; background:var(--panel);
               border-top:1px solid var(--line); padding:12px 16px; }
-  #inputbar > div { max-width:820px; margin:0 auto; display:flex; gap:10px; }
+  #inputbar > div { max-width:860px; margin:0 auto; display:flex; gap:10px; }
   #input { flex:1; background:var(--panel-2); color:var(--fg); border:1px solid var(--line);
            border-radius:10px; padding:11px 14px; font:inherit; resize:none; }
   #input:focus { outline:none; border-color:var(--acc); }
@@ -53,13 +96,59 @@
 <body>
 <header><h1>NanoLM</h1><span>from-scratch GPT · LoRA fine-tuned · offline · zero API cost</span></header>
 <main>
-  <div id="chat"></div>
-  <div id="presets">
-    <button data-q="Is the death cap mushroom poisonous?">Death cap?</button>
-    <button data-q="How can I tell a chanterelle from a jack-o'-lantern mushroom?">Chanterelle vs jack-o'-lantern</button>
-    <button data-q="What should I do if someone eats a poisonous mushroom?">Poisoning first aid</button>
-    <button data-q="Are morels safe to eat?">Morels</button>
-    <button data-q="How do I take a spore print?">Spore print</button>
+  <div class="tabs">
+    <button id="tab-chat" class="active">Chat</button>
+    <button id="tab-cmp">Before/After fine-tuning</button>
+  </div>
+
+  <!-- Chat tab -->
+  <div id="pane-chat" class="tabpane active">
+    <div id="chat"></div>
+    <div id="presets">
+      <button data-q="Is the death cap mushroom poisonous?">Death cap?</button>
+      <button data-q="How can I tell a chanterelle from a jack-o'-lantern mushroom?">Chanterelle vs jack-o'-lantern</button>
+      <button data-q="What should I do if someone eats a poisonous mushroom?">Poisoning first aid</button>
+      <button data-q="Are morels safe to eat?">Morels</button>
+      <button data-q="How do I take a spore print?">Spore print</button>
+    </div>
+    <details class="params" open>
+      <summary>Generation parameters</summary>
+      <div class="grid">
+        <div class="param">
+          <div class="label"><span>Temperature</span><b id="val-temperature">0.7</b></div>
+          <input type="range" id="sl-temperature" min="0.2" max="1.5" step="0.1" value="0.7">
+        </div>
+        <div class="param">
+          <div class="label"><span>Top-k</span><b id="val-top_k">40</b></div>
+          <input type="range" id="sl-top_k" min="1" max="200" step="1" value="40">
+        </div>
+        <div class="param">
+          <div class="label"><span>Repetition penalty</span><b id="val-repetition_penalty">1.15</b></div>
+          <input type="range" id="sl-repetition_penalty" min="1.0" max="2.0" step="0.05" value="1.15">
+        </div>
+        <div class="param">
+          <div class="label"><span>Max tokens</span><b id="val-max_tokens">128</b></div>
+          <input type="range" id="sl-max_tokens" min="32" max="512" step="1" value="128">
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- Before/After comparison tab -->
+  <div id="pane-cmp" class="tabpane">
+    <p class="cmp-q" id="cmp-question">…</p>
+    <div id="cmp-loading">Loading comparison…</div>
+    <div class="cmp-cards" id="cmp-cards" style="display:none">
+      <div class="cmp-card before">
+        <div class="h"><b>Before fine-tuning</b><span class="badge" style="background:var(--panel-2);color:var(--mut)">base model</span></div>
+        <div class="body" id="cmp-before"></div>
+      </div>
+      <div class="cmp-card after">
+        <div class="h"><b>After fine-tuning</b><span class="badge">fine-tuned</span></div>
+        <div class="body" id="cmp-after"></div>
+      </div>
+    </div>
+    <p class="cmp-src" id="cmp-source"></p>
   </div>
 </main>
 <div id="inputbar"><div>
@@ -73,6 +162,29 @@ const chat = document.getElementById('chat'), input = document.getElementById('i
       send = document.getElementById('send');
 let streaming = false;
 
+/* ---------- generation parameters ---------- */
+const params = {temperature: 0.7, top_k: 40, repetition_penalty: 1.15, max_tokens: 128};
+['temperature','top_k','repetition_penalty','max_tokens'].forEach(k => {
+  const sl = document.getElementById('sl-' + k);
+  const val = document.getElementById('val-' + k);
+  sl.addEventListener('input', () => {
+    params[k] = parseFloat(sl.value);
+    val.textContent = sl.value;
+  });
+});
+
+/* ---------- tabs ---------- */
+function switchTab(name) {
+  document.getElementById('tab-chat').classList.toggle('active', name === 'chat');
+  document.getElementById('tab-cmp').classList.toggle('active', name === 'cmp');
+  document.getElementById('pane-chat').classList.toggle('active', name === 'chat');
+  document.getElementById('pane-cmp').classList.toggle('active', name === 'cmp');
+  if (name === 'cmp') loadComparison();
+}
+document.getElementById('tab-chat').addEventListener('click', () => switchTab('chat'));
+document.getElementById('tab-cmp').addEventListener('click', () => switchTab('cmp'));
+
+/* ---------- chat ---------- */
 function addMsg(role, text) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
@@ -95,8 +207,9 @@ async function ask(prompt) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt, max_tokens: 160, temperature: 0.7, top_k: 40,
-                            repetition_penalty: 1.15, no_repeat_ngram_size: 4}),
+      body: JSON.stringify({prompt, max_tokens: params.max_tokens, temperature: params.temperature,
+                            top_k: params.top_k, repetition_penalty: params.repetition_penalty,
+                            no_repeat_ngram_size: 4}),
     });
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -122,6 +235,25 @@ async function ask(prompt) {
     streaming = false;
     send.disabled = false;
     input.focus();
+  }
+}
+
+/* ---------- before/after comparison ---------- */
+let cmpLoaded = false;
+async function loadComparison() {
+  if (cmpLoaded) return;
+  try {
+    const res = await fetch('/api/comparison');
+    const data = await res.json();
+    document.getElementById('cmp-question').textContent = 'Q: ' + data.question;
+    document.getElementById('cmp-before').textContent = data.before;
+    document.getElementById('cmp-after').textContent = data.after;
+    document.getElementById('cmp-source').textContent = data.source;
+    document.getElementById('cmp-loading').style.display = 'none';
+    document.getElementById('cmp-cards').style.display = 'grid';
+    cmpLoaded = true;
+  } catch (e) {
+    document.getElementById('cmp-loading').textContent = 'Failed to load comparison: ' + e.message;
   }
 }
 
