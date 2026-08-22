@@ -151,7 +151,7 @@ def main(argv=None):
     step, best_val = 0, float("inf")
 
     if args.init_from:
-        ckpt = torch.load(args.init_from, map_location=device, weights_only=False)
+        ckpt = torch.load(args.init_from, map_location=device, weights_only=True)
         model.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
         step = ckpt["step"]
@@ -160,7 +160,7 @@ def main(argv=None):
     else:
         latest = out_dir / "latest.ckpt"
         if latest.exists():
-            ckpt = torch.load(latest, map_location=device, weights_only=False)
+            ckpt = torch.load(latest, map_location=device, weights_only=True)
             model.load_state_dict(ckpt["model"])
             optimizer.load_state_dict(ckpt["optimizer"])
             step = ckpt["step"]

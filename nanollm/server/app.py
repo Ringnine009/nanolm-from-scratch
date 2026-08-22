@@ -52,7 +52,7 @@ class ModelRuntime:
     def load(self, ckpt_path: str, tokenizer_path: str, device: str):
         self.device = device if device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = BPETokenizer.load(tokenizer_path)
-        ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=False)
+        ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=True)
         config = GPTConfig(**ckpt["config"])
         self.model = GPT(config).to(self.device)
         self.model.load_state_dict(ckpt["model"])

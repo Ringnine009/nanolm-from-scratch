@@ -125,7 +125,7 @@ def load_lora(model: nn.Module, path: str | Path, r: int | None = None, alpha: f
     target names and rank; matching adapters are copied in, unknown ones
     reported.
     """
-    payload = torch.load(path, map_location="cpu", weights_only=False)
+    payload = torch.load(path, map_location="cpu", weights_only=True)
     cfg = payload["config"]
     r = r or cfg["r"]
     alpha = alpha or cfg["alpha"]

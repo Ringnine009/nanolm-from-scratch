@@ -24,12 +24,12 @@ def main(argv=None):
     args = p.parse_args(argv)
 
     device = args.device if torch.cuda.is_available() or args.device == "cpu" else args.device
-    ckpt = torch.load(args.base_ckpt, map_location=device, weights_only=False)
+    ckpt = torch.load(args.base_ckpt, map_location=device, weights_only=True)
     config = GPTConfig(**ckpt["config"])
     model = GPT(config).to(device)
     model.load_state_dict(ckpt["model"])
 
-    payload = torch.load(args.lora, map_location="cpu", weights_only=False)
+    payload = torch.load(args.lora, map_location="cpu", weights_only=True)
     inject_lora(model, r=payload["config"]["r"], alpha=payload["config"]["alpha"])
     result = load_lora(model, args.lora)
     assert not result["skipped"], f"adapters not found on model: {result['skipped']}"

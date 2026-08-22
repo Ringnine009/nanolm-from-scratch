@@ -105,7 +105,7 @@ def main(argv=None):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     tokenizer = BPETokenizer.load(args.tokenizer)
-    ckpt = torch.load(args.base_ckpt, map_location=device, weights_only=False)
+    ckpt = torch.load(args.base_ckpt, map_location=device, weights_only=True)
     config = GPTConfig(**ckpt["config"])
     model = GPT(config).to(device)
     model.load_state_dict(ckpt["model"])

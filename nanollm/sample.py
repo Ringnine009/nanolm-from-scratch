@@ -41,7 +41,7 @@ def main(argv=None):
 
     device = args.device if args.device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BPETokenizer.load(args.tokenizer)
-    ckpt = torch.load(args.ckpt, map_location=device, weights_only=False)
+    ckpt = torch.load(args.ckpt, map_location=device, weights_only=True)
     config = GPTConfig(**ckpt.get("config", {"vocab_size": tokenizer.vocab_size}))
     model = GPT(config).to(device)
     model.load_state_dict(ckpt["model"])
