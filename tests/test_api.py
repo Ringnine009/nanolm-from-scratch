@@ -62,6 +62,11 @@ def test_index_serves_ui(client):
     assert "Before/After fine-tuning" in r.text
     assert "Generation parameters" in r.text
     assert "sl-temperature" in r.text
+    # v5: i18n (EN default text + zh dictionary + lang switch) and live stats
+    assert "data-i18n" in r.text
+    assert "中文" in r.text
+    assert "stats_done" in r.text
+    assert "lang-zh" in r.text
 
 
 def test_comparison_returns_structured_json(client):

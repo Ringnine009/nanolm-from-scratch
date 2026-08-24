@@ -15,12 +15,18 @@
     --acc:#059669;       /* accent (emerald) */
   }
   * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.55 -apple-system, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+  body { margin:0; font:15px/1.55 -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
          background:var(--bg); color:var(--fg); }
-  header { padding:18px 24px; border-bottom:1px solid var(--line); background:var(--panel);
-           display:flex; align-items:baseline; gap:14px; }
-  header h1 { font-size:18px; margin:0; letter-spacing:.3px; }
-  header span { color:var(--mut); font-size:13px; }
+  header { padding:14px 24px; border-bottom:1px solid var(--line); background:var(--panel);
+           display:flex; align-items:center; gap:14px; }
+  header .brand h1 { font-size:18px; margin:0; letter-spacing:.3px; }
+  header .brand span { color:var(--mut); font-size:13px; }
+  header .spacer { flex:1; }
+  .langswitch { display:flex; gap:2px; background:var(--panel-2); border:1px solid var(--line);
+                border-radius:8px; padding:2px; }
+  .langswitch button { border:0; background:none; font-size:12px; font-weight:600; color:var(--mut);
+                       padding:4px 10px; border-radius:6px; cursor:pointer; }
+  .langswitch button.active { background:var(--panel); color:var(--acc); box-shadow:0 1px 2px rgba(0,0,0,0.08); }
   main { max-width:860px; margin:0 auto; padding:24px 16px 150px; }
 
   /* tabs */
@@ -38,10 +44,14 @@
   .msg { margin:14px 0; display:flex; gap:10px; }
   .msg .who { flex:0 0 64px; font-weight:600; font-size:13px; color:var(--mut); }
   .msg.user .who { color:var(--acc); }
+  .msg .col { flex:1; min-width:0; }
   .msg .body { white-space:pre-wrap; overflow-wrap:anywhere; background:var(--panel);
-               border:1px solid var(--line); border-radius:10px; padding:10px 14px; flex:1;
+               border:1px solid var(--line); border-radius:10px; padding:10px 14px;
                box-shadow:0 1px 2px rgba(0,0,0,0.03); }
   .msg.user .body { background:var(--panel-2); }
+  .meta { font-size:12px; color:var(--mut); margin-top:4px; padding:0 2px;
+          font-variant-numeric:tabular-nums; }
+  .meta.live { color:var(--acc); }
   .caret { display:inline-block; width:8px; height:15px; background:var(--acc);
            vertical-align:-2px; animation:blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity:0; } }
@@ -76,6 +86,7 @@
   .cmp-card .h b { font-size:13px; text-transform:uppercase; letter-spacing:.4px; color:var(--mut); }
   .badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
            background:var(--acc); color:#fff; }
+  .badge.muted { background:var(--panel-2); color:var(--mut); }
   .cmp-card .body { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; color:var(--fg); }
   .cmp-src { color:var(--mut); font-size:12px; margin-top:14px; }
   #cmp-loading { color:var(--mut); font-size:14px; }
@@ -94,40 +105,46 @@
 </style>
 </head>
 <body>
-<header><h1>NanoLM</h1><span>from-scratch GPT · LoRA fine-tuned · offline · zero API cost</span></header>
+<header>
+  <div class="brand"><h1>NanoLM</h1><span data-i18n="header_sub">from-scratch GPT · LoRA fine-tuned · offline · zero API cost</span></div>
+  <div class="spacer"></div>
+  <div class="langswitch" role="group" aria-label="Language">
+    <button id="lang-en" class="active">EN</button><button id="lang-zh">中文</button>
+  </div>
+</header>
 <main>
   <div class="tabs">
-    <button id="tab-chat" class="active">Chat</button>
-    <button id="tab-cmp">Before/After fine-tuning</button>
+    <button id="tab-chat" class="active" data-i18n="tab_chat">Chat</button>
+    <button id="tab-cmp" data-i18n="tab_cmp">Before/After fine-tuning</button>
   </div>
 
   <!-- Chat tab -->
   <div id="pane-chat" class="tabpane active">
     <div id="chat"></div>
     <div id="presets">
-      <button data-q="Is the death cap mushroom poisonous?">Death cap?</button>
-      <button data-q="How can I tell a chanterelle from a jack-o'-lantern mushroom?">Chanterelle vs jack-o'-lantern</button>
-      <button data-q="What should I do if someone eats a poisonous mushroom?">Poisoning first aid</button>
-      <button data-q="Are morels safe to eat?">Morels</button>
-      <button data-q="How do I take a spore print?">Spore print</button>
+      <button data-q="Is the death cap mushroom poisonous?" data-i18n="preset_deathcap">Death cap?</button>
+      <button data-q="How can I tell a chanterelle from a jack-o'-lantern mushroom?" data-i18n="preset_chanterelle">Chanterelle vs jack-o'-lantern</button>
+      <button data-q="What should I do if someone eats a poisonous mushroom?" data-i18n="preset_firstaid">Poisoning first aid</button>
+      <button data-q="Are morels safe to eat?" data-i18n="preset_morels">Morels</button>
+      <button data-q="How do I take a spore print?" data-i18n="preset_sporeprint">Spore print</button>
     </div>
     <details class="params" open>
-      <summary>Generation parameters</summary>
+      <summary data-i18n="params_title">Generation parameters</summary>
       <div class="grid">
         <div class="param">
-          <div class="label"><span>Temperature</span><b id="val-temperature">0.7</b></div>
+          <div class="label"><span data-i18n="param_temperature">Temperature</span><b id="val-temperature">0.7</b></div>
           <input type="range" id="sl-temperature" min="0.2" max="1.5" step="0.1" value="0.7">
         </div>
         <div class="param">
-          <div class="label"><span>Top-k</span><b id="val-top_k">40</b></div>
+          <div class="label"><span data-i18n="param_topk">Top-k</span><b id="val-top_k">40</b></div>
           <input type="range" id="sl-top_k" min="1" max="200" step="1" value="40">
         </div>
         <div class="param">
-          <div class="label"><span>Repetition penalty</span><b id="val-repetition_penalty">1.15</b></div>
+          <div class="label"><span data-i18n="param_repetition">Repetition penalty</span><b id="val-repetition_penalty">1.15</b></div>
           <input type="range" id="sl-repetition_penalty" min="1.0" max="2.0" step="0.05" value="1.15">
         </div>
         <div class="param">
-          <div class="label"><span>Max tokens</span><b id="val-max_tokens">128</b></div>
+          <div class="label"><span data-i18n="param_maxtokens">Max tokens</span><b id="val-max_tokens">128</b></div>
           <input type="range" id="sl-max_tokens" min="32" max="512" step="1" value="128">
         </div>
       </div>
@@ -137,43 +154,89 @@
   <!-- Before/After comparison tab -->
   <div id="pane-cmp" class="tabpane">
     <p class="cmp-q" id="cmp-question">…</p>
-    <div id="cmp-loading">Loading comparison…</div>
+    <div id="cmp-loading" data-i18n="cmp_loading">Loading comparison…</div>
     <div class="cmp-cards" id="cmp-cards" style="display:none">
       <div class="cmp-card before">
-        <div class="h"><b>Before fine-tuning</b><span class="badge" style="background:var(--panel-2);color:var(--mut)">base model</span></div>
+        <div class="h"><b data-i18n="cmp_before_title">Before fine-tuning</b><span class="badge muted" data-i18n="cmp_before_badge">base model</span></div>
         <div class="body" id="cmp-before"></div>
       </div>
       <div class="cmp-card after">
-        <div class="h"><b>After fine-tuning</b><span class="badge">fine-tuned</span></div>
+        <div class="h"><b data-i18n="cmp_after_title">After fine-tuning</b><span class="badge" data-i18n="cmp_after_badge">fine-tuned</span></div>
         <div class="body" id="cmp-after"></div>
       </div>
     </div>
-    <p class="cmp-src" id="cmp-source"></p>
+    <p class="cmp-src"><span data-i18n="cmp_source_label">Source</span>: <span id="cmp-source"></span></p>
   </div>
 </main>
 <div id="inputbar"><div>
-  <textarea id="input" rows="2" placeholder="Ask about mushroom safety… (Enter to send, Shift+Enter for newline)"></textarea>
-  <button id="send">Send</button>
+  <textarea id="input" rows="2" data-i18n-ph="input_placeholder" placeholder="Ask about mushroom safety… (Enter to send, Shift+Enter for newline)"></textarea>
+  <button id="send" data-i18n="send">Send</button>
 </div></div>
-<footer>NanoLM is for education and demonstration only — never rely on it for real mushroom identification.</footer>
+<footer data-i18n="footer">NanoLM is for education and demonstration only — never rely on it for real mushroom identification.</footer>
 
 <script>
-const chat = document.getElementById('chat'), input = document.getElementById('input'),
-      send = document.getElementById('send');
-let streaming = false;
-
-/* ---------- generation parameters ---------- */
-const params = {temperature: 0.7, top_k: 40, repetition_penalty: 1.15, max_tokens: 128};
-['temperature','top_k','repetition_penalty','max_tokens'].forEach(k => {
-  const sl = document.getElementById('sl-' + k);
-  const val = document.getElementById('val-' + k);
-  sl.addEventListener('input', () => {
-    params[k] = parseFloat(sl.value);
-    val.textContent = sl.value;
+/* ================= i18n ================= */
+const I18N = {
+  en: {
+    header_sub: "from-scratch GPT · LoRA fine-tuned · offline · zero API cost",
+    tab_chat: "Chat", tab_cmp: "Before/After fine-tuning",
+    preset_deathcap: "Death cap?", preset_chanterelle: "Chanterelle vs jack-o'-lantern",
+    preset_firstaid: "Poisoning first aid", preset_morels: "Morels", preset_sporeprint: "Spore print",
+    params_title: "Generation parameters",
+    param_temperature: "Temperature", param_topk: "Top-k",
+    param_repetition: "Repetition penalty", param_maxtokens: "Max tokens",
+    send: "Send", input_placeholder: "Ask about mushroom safety… (Enter to send, Shift+Enter for newline)",
+    footer: "NanoLM is for education and demonstration only — never rely on it for real mushroom identification.",
+    who_you: "You", who_model: "NanoLM",
+    cmp_loading: "Loading comparison…", cmp_before_title: "Before fine-tuning",
+    cmp_before_badge: "base model", cmp_after_title: "After fine-tuning",
+    cmp_after_badge: "fine-tuned", cmp_source_label: "Source", cmp_failed: "Failed to load comparison: ",
+    status_streaming: "streaming · {n} tokens · {s}s · {t} tok/s · temp {temp} · top-k {k}",
+    stats_done: "{n} tokens · {s}s · {t} tok/s · temp {temp} · top-k {k} · repetition {r}",
+    err_prefix: "Error: ",
+  },
+  zh: {
+    header_sub: "从零实现 GPT · LoRA 微调 · 离线 · 零 API 成本",
+    tab_chat: "聊天", tab_cmp: "微调前后对比",
+    preset_deathcap: "毒鹅膏？", preset_chanterelle: "鸡油菌 vs 杰克灯笼菌",
+    preset_firstaid: "中毒急救", preset_morels: "羊肚菌", preset_sporeprint: "孢子印",
+    params_title: "生成参数",
+    param_temperature: "温度", param_topk: "采样 Top-k",
+    param_repetition: "重复惩罚", param_maxtokens: "最大 token 数",
+    send: "发送", input_placeholder: "询问蘑菇安全问题…（Enter 发送，Shift+Enter 换行）",
+    footer: "NanoLM 仅用于教学演示 — 切勿据此进行真实蘑菇辨识或医疗决策。",
+    who_you: "你", who_model: "NanoLM",
+    cmp_loading: "对比加载中…", cmp_before_title: "微调前",
+    cmp_before_badge: "基座模型", cmp_after_title: "微调后",
+    cmp_after_badge: "已微调", cmp_source_label: "来源", cmp_failed: "对比加载失败：",
+    status_streaming: "生成中 · {n} tokens · {s} 秒 · {t} tok/s · 温度 {temp} · top-k {k}",
+    stats_done: "{n} tokens · {s} 秒 · {t} tok/s · 温度 {temp} · top-k {k} · 重复惩罚 {r}",
+    err_prefix: "错误：",
+  },
+};
+let lang = 'en';
+function t(key, vars) {
+  let s = (I18N[lang] && I18N[lang][key]) ?? (I18N.en[key] ?? key);
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll('{' + k + '}', v);
+  return s;
+}
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+  document.documentElement.lang = lang === 'zh' ? 'zh' : 'en';
+  document.querySelectorAll('.msg.user .who').forEach(el => { el.textContent = t('who_you'); });
+  document.querySelectorAll('.msg.model .who').forEach(el => { el.textContent = t('who_model'); });
+  document.querySelectorAll('.meta').forEach(el => {
+    if (el.dataset.metaKey) el.textContent = el.dataset.metaText;
   });
-});
+}
+function setLang(l) { lang = l; applyLang(); }
+document.getElementById('lang-en').addEventListener('click', () => setLang('en'));
+document.getElementById('lang-zh').addEventListener('click', () => setLang('zh'));
 
-/* ---------- tabs ---------- */
+/* ================= tabs ================= */
 function switchTab(name) {
   document.getElementById('tab-chat').classList.toggle('active', name === 'chat');
   document.getElementById('tab-cmp').classList.toggle('active', name === 'cmp');
@@ -184,15 +247,31 @@ function switchTab(name) {
 document.getElementById('tab-chat').addEventListener('click', () => switchTab('chat'));
 document.getElementById('tab-cmp').addEventListener('click', () => switchTab('cmp'));
 
-/* ---------- chat ---------- */
+/* ================= generation parameters ================= */
+const params = {temperature: 0.7, top_k: 40, repetition_penalty: 1.15, max_tokens: 128};
+['temperature','top_k','repetition_penalty','max_tokens'].forEach(k => {
+  const sl = document.getElementById('sl-' + k);
+  const val = document.getElementById('val-' + k);
+  sl.addEventListener('input', () => {
+    params[k] = parseFloat(sl.value);
+    val.textContent = sl.value;
+  });
+});
+
+/* ================= chat ================= */
+const chat = document.getElementById('chat'), input = document.getElementById('input'),
+      send = document.getElementById('send');
+let streaming = false;
+
 function addMsg(role, text) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  div.innerHTML = `<div class="who">${role === 'user' ? 'You' : 'NanoLM'}</div><div class="body"></div>`;
+  div.innerHTML = `<div class="who">${role === 'user' ? t('who_you') : t('who_model')}</div>
+                   <div class="col"><div class="body"></div><div class="meta"></div></div>`;
   div.querySelector('.body').textContent = text;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
-  return div.querySelector('.body');
+  return div;
 }
 
 async function ask(prompt) {
@@ -200,9 +279,30 @@ async function ask(prompt) {
   streaming = true;
   send.disabled = true;
   addMsg('user', prompt);
-  const body = addMsg('assistant', '');
+  const bubble = addMsg('model', '');
+  const bodyEl = bubble.querySelector('.body');
+  const metaEl = bubble.querySelector('.meta');
   const caret = document.createElement('span'); caret.className = 'caret';
-  body.appendChild(caret);
+  bodyEl.appendChild(caret);
+  const start = performance.now();
+  let tokens = 0;
+
+  function updateMeta(final) {
+    const secs = (performance.now() - start) / 1000;
+    const speed = secs > 0.05 ? Math.round(tokens / secs) : 0;
+    if (final) {
+      metaEl.classList.remove('live');
+      metaEl.dataset.metaKey = 'stats';
+      metaEl.dataset.metaText = t('stats_done', {n: tokens, s: secs.toFixed(1), t: speed,
+        temp: params.temperature, k: params.top_k, r: params.repetition_penalty});
+      metaEl.textContent = metaEl.dataset.metaText;
+    } else {
+      metaEl.classList.add('live');
+      metaEl.textContent = t('status_streaming', {n: tokens, s: secs.toFixed(1), t: speed,
+        temp: params.temperature, k: params.top_k});
+    }
+  }
+
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -222,15 +322,18 @@ async function ask(prompt) {
         if (!line.startsWith('data: ')) continue;
         const payload = JSON.parse(line.slice(6));
         if (payload.token === '[DONE]') continue;
-        acc += payload.token;
+        acc += payload.token; tokens += 1;
         caret.remove();
-        body.textContent = acc;
+        bodyEl.textContent = acc;
+        updateMeta(false);
         chat.scrollTop = chat.scrollHeight;
       }
     }
+    updateMeta(true);
   } catch (e) {
     caret.remove();
-    body.textContent = 'Error: ' + e.message;
+    bodyEl.textContent = t('err_prefix') + e.message;
+    metaEl.textContent = '';
   } finally {
     streaming = false;
     send.disabled = false;
@@ -238,7 +341,7 @@ async function ask(prompt) {
   }
 }
 
-/* ---------- before/after comparison ---------- */
+/* ================= before/after comparison ================= */
 let cmpLoaded = false;
 async function loadComparison() {
   if (cmpLoaded) return;
@@ -253,7 +356,7 @@ async function loadComparison() {
     document.getElementById('cmp-cards').style.display = 'grid';
     cmpLoaded = true;
   } catch (e) {
-    document.getElementById('cmp-loading').textContent = 'Failed to load comparison: ' + e.message;
+    document.getElementById('cmp-loading').textContent = t('cmp_failed') + e.message;
   }
 }
 
@@ -268,6 +371,14 @@ input.addEventListener('keydown', (e) => {
 });
 document.querySelectorAll('#presets button').forEach(b =>
   b.addEventListener('click', () => ask(b.dataset.q)));
+
+/* ================= init (URL params: ?lang=zh, ?tab=cmp) ================= */
+(function init() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('lang') === 'zh') setLang('zh');
+  applyLang();
+  if (p.get('tab') === 'cmp') switchTab('cmp');
+})();
 </script>
 </body>
 </html>
