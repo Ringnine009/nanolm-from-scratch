@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import json
 import sys
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import torch
 from fastapi import FastAPI
@@ -56,6 +57,11 @@ COMPARISON_FALLBACK = {
 }
 
 
+class HistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class ChatRequest(BaseModel):
     prompt: str = Field(..., description="User question (or full prompt)")
     max_tokens: int = Field(128, ge=1, le=1024)
@@ -64,6 +70,10 @@ class ChatRequest(BaseModel):
     repetition_penalty: float = Field(1.15, ge=1.0, le=3.0)
     no_repeat_ngram_size: int = Field(4, ge=0, le=16)
     wrap_instructions: bool = Field(True, description="wrap prompt in <|user|>/<|assistant|>")
+    history: list[HistoryMessage] = Field(
+        default_factory=list,
+        description="recent conversation history (oldest first); backward compatible",
+    )
 
 
 class ModelRuntime:
@@ -115,9 +125,45 @@ def health():
 
 
 def build_prompt(req: ChatRequest) -> str:
-    if req.wrap_instructions and "<|user|>" not in req.prompt:
-        return f"<|user|>{req.prompt}<|assistant|>"
-    return req.prompt
+    """Build the model prompt from history + current question.
+
+    Instruction format: ``<|user|>…<|assistant|>…`` turns are concatenated in
+    order, ending with the current question.  In raw mode (``wrap_instructions
+    = False``) the turns are joined with newlines instead.
+    """
+    if not req.history:
+        if req.wrap_instructions and "<|user|>" not in req.prompt:
+            return f"<|user|>{req.prompt}<|assistant|>"
+        return req.prompt
+    parts: list[str] = []
+    for h in req.history:
+        if req.wrap_instructions:
+            tag = "<|user|>" if h.role == "user" else "<|assistant|>"
+            parts.append(tag + h.content)
+        else:
+            parts.append(h.content)
+    if req.wrap_instructions:
+        parts.append(f"<|user|>{req.prompt}<|assistant|>")
+    else:
+        parts.append(req.prompt)
+    return "".join(parts)
+
+
+def build_chat_prompt(req: ChatRequest, tokenizer, block_size: int, reserve_tokens: int = 16) -> str:
+    """Like ``build_prompt`` but drops the OLDEST history turns until the
+    encoded prompt fits ``block_size - reserve_tokens``.  The current question
+    is never dropped."""
+    budget = block_size - reserve_tokens
+
+    def fits(history: list[HistoryMessage]) -> bool:
+        req.history = history
+        return len(tokenizer.encode(build_prompt(req))) <= budget
+
+    history = list(req.history)
+    while len(history) > 1 and not fits(history):
+        history = history[1:]  # drop the oldest turn
+    req.history = history
+    return build_prompt(req)
 
 
 @app.post("/api/chat")
@@ -125,7 +171,7 @@ async def chat(req: ChatRequest):
     if not runtime.ready:
         return StreamingResponse(iter(["event: error\ndata: {\"error\": \"model not loaded\"}\n\n"]),
                                  media_type="text/event-stream")
-    prompt = build_prompt(req)
+    prompt = build_chat_prompt(req, runtime.tokenizer, runtime.model.config.block_size)
     stop_ids = {runtime.tokenizer.special_to_id.get(END_MARKER, -1)}
     stop_ids.discard(-1)
 
@@ -168,6 +214,100 @@ async def chat(req: ChatRequest):
 
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# --------------------------------------------------------------------- #
+# training info endpoint
+# --------------------------------------------------------------------- #
+ROOT_DIR = Path(__file__).resolve().parents[2]  # repository root
+LOSS_CSV_PATH = ROOT_DIR / "out" / "pretrain" / "losses.csv"
+EVAL_RESULTS_PATH = ROOT_DIR / "out" / "eval_results.json"
+
+# Real run values (see docs/results.md); the loss fallback is the actual
+# losses.csv sampled at the evaluation steps of the real training run.
+TRAINING_HYPERPARAMS = {
+    "training": {
+        "steps": 6000, "learning_rate": 6e-4, "min_learning_rate": 6e-5,
+        "warmup_steps": 300, "batch_size": 32, "block_size": 256,
+        "grad_clip": 1.0, "weight_decay": 0.1, "dtype": "bf16",
+        "corpus_mb": 1.5, "tokens": 373167, "wall_minutes": 28.1, "best_val": 5.02,
+    },
+    "lora": {
+        "r": 8, "alpha": 16, "dropout": 0.05, "trainable_pct": 1.60,
+        "train_pairs": 442, "val_pairs": 49, "steps": 1680, "val_loss": 0.84,
+    },
+}
+
+EVALUATION_SUMMARY = {
+    "n": 44, "hit_any": 0.386, "hit_all": 0.091,
+    "categories": {
+        "edibility": {"n": 10, "hit_any": 0.80},
+        "identification": {"n": 8, "hit_any": 0.125},
+        "habitat": {"n": 8, "hit_any": 0.25},
+        "symptoms": {"n": 8, "hit_any": 0.375},
+        "first_aid": {"n": 10, "hit_any": 0.30},
+    },
+    "source": "docs/results.md (real held-out run, regenerable via scripts/evaluate.py)",
+}
+
+ARCHIVED_LOSS = {
+    "steps": [0, 300, 600, 900, 1200, 1500, 3000, 5700],
+    "train_loss": [9.49, 4.87, 3.64, 1.98, 1.41, 0.73, 0.25, 0.12],
+    "val_loss": [9.50, 5.86, 5.39, 5.14, 5.02, 5.51, 6.62, 7.16],
+}
+
+
+def load_loss_curve() -> dict:
+    """Loss data from out/pretrain/losses.csv when available, else archived."""
+    if LOSS_CSV_PATH.exists():
+        steps, train_loss, val_loss = [], [], []
+        with open(LOSS_CSV_PATH, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                steps.append(int(row["step"]))
+                train_loss.append(float(row["train_loss"]))
+                v = row.get("val_loss", "")
+                val_loss.append(float(v) if v not in ("", "nan") else None)
+        return {"steps": steps, "train_loss": train_loss, "val_loss": val_loss,
+                "source": "out/pretrain/losses.csv"}
+    return {**ARCHIVED_LOSS, "source": "archived sample"}
+
+
+def model_hyperparams() -> dict:
+    cfg = runtime.model.config if runtime.model is not None else None
+    if cfg is None:
+        return {"layers": None, "heads": None, "embed_dim": None, "block_size": None,
+                "vocab_size": None, "params": None}
+    return {
+        "layers": cfg.n_layer, "heads": cfg.n_head, "embed_dim": cfg.n_embd,
+        "block_size": cfg.block_size, "vocab_size": cfg.vocab_size,
+        "params": sum(p.numel() for p in runtime.model.parameters()),
+    }
+
+
+@app.get("/api/training")
+def training():
+    """Training info for the 'Training' tab: loss curve, hyperparameters,
+    and the held-out evaluation summary."""
+    loss = load_loss_curve()
+    ev = dict(EVALUATION_SUMMARY)
+    if EVAL_RESULTS_PATH.exists():  # prefer live evaluation results
+        try:
+            live = json.loads(EVAL_RESULTS_PATH.read_text(encoding="utf-8"))
+            ev["hit_any"] = live["hit_any"]
+            ev["hit_all"] = live["hit_all"]
+            ev["categories"] = live["categories"]
+            ev["source"] = "out/eval_results.json (regenerated by scripts/evaluate.py)"
+        except (OSError, KeyError, json.JSONDecodeError):
+            pass
+    return {
+        "loss": loss,
+        "hyperparams": {
+            "model": model_hyperparams(),
+            "training": TRAINING_HYPERPARAMS["training"],
+            "lora": TRAINING_HYPERPARAMS["lora"],
+        },
+        "evaluation": ev,
+    }
 
 
 @app.get("/api/comparison")

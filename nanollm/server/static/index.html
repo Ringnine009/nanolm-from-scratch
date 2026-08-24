@@ -91,6 +91,32 @@
   .cmp-src { color:var(--mut); font-size:12px; margin-top:14px; }
   #cmp-loading { color:var(--mut); font-size:14px; }
 
+  /* training tab */
+  .tr-h { font-size:14px; font-weight:600; margin:20px 0 10px; }
+  .tr-chart { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  #tr-svg { width:100%; height:auto; display:block; }
+  .tr-legend { display:flex; gap:14px; margin-top:6px; font-size:12px; color:var(--mut); flex-wrap:wrap; }
+  .lg::before { content:""; display:inline-block; width:14px; height:3px; border-radius:2px;
+                margin-right:6px; vertical-align:middle; }
+  .lg-train::before { background:#4f46e5; }
+  .lg-val::before { background:#059669; }
+  .lg-src { margin-left:auto; }
+  .tr-cards { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
+  @media (max-width:760px) { .tr-cards { grid-template-columns:1fr; } }
+  .tr-card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .tr-card-h { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+               color:var(--mut); margin-bottom:8px; }
+  .tr-kv { display:flex; flex-direction:column; gap:5px; }
+  .tr-kv .kv { display:flex; justify-content:space-between; font-size:13px; gap:8px; }
+  .tr-kv .kv span { color:var(--mut); }
+  .tr-kv .kv b { color:var(--fg); font-variant-numeric:tabular-nums; text-align:right; }
+  .tr-eval { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px; }
+  @media (max-width:640px) { .tr-eval { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+          padding:14px; text-align:center; }
+  .stat b { display:block; font-size:24px; color:var(--acc); font-variant-numeric:tabular-nums; }
+  .stat span { font-size:12px; color:var(--mut); }
+
   #inputbar { position:fixed; left:0; right:0; bottom:0; background:var(--panel);
               border-top:1px solid var(--line); padding:12px 16px; }
   #inputbar > div { max-width:860px; margin:0 auto; display:flex; gap:10px; }
@@ -116,6 +142,7 @@
   <div class="tabs">
     <button id="tab-chat" class="active" data-i18n="tab_chat">Chat</button>
     <button id="tab-cmp" data-i18n="tab_cmp">Before/After fine-tuning</button>
+    <button id="tab-training" data-i18n="tab_training">Training</button>
   </div>
 
   <!-- Chat tab -->
@@ -167,6 +194,47 @@
     </div>
     <p class="cmp-src"><span data-i18n="cmp_source_label">Source</span>: <span id="cmp-source"></span></p>
   </div>
+
+  <!-- Training info tab -->
+  <div id="pane-training" class="tabpane">
+    <div id="tr-loading" data-i18n="tr_loading">Loading training info…</div>
+    <div id="tr-content" style="display:none">
+      <h3 class="tr-h" data-i18n="tr_loss_title">Loss curve (pretraining)</h3>
+      <div class="tr-chart">
+        <svg id="tr-svg" viewBox="0 0 640 260" role="img" aria-label="loss curve"></svg>
+        <div class="tr-legend">
+          <span class="lg lg-train" data-i18n="tr_legend_train">train loss</span>
+          <span class="lg lg-val" data-i18n="tr_legend_val">val loss</span>
+          <span class="lg lg-src" id="tr-loss-source"></span>
+        </div>
+      </div>
+
+      <h3 class="tr-h" data-i18n="tr_hp_title">Hyperparameters</h3>
+      <div class="tr-cards">
+        <div class="tr-card">
+          <div class="tr-card-h" data-i18n="tr_hp_model">Model</div>
+          <div class="tr-kv" id="tr-model"></div>
+        </div>
+        <div class="tr-card">
+          <div class="tr-card-h" data-i18n="tr_hp_train">Training</div>
+          <div class="tr-kv" id="tr-training"></div>
+        </div>
+        <div class="tr-card">
+          <div class="tr-card-h" data-i18n="tr_hp_lora">LoRA fine-tuning</div>
+          <div class="tr-kv" id="tr-lora"></div>
+        </div>
+      </div>
+
+      <h3 class="tr-h" data-i18n="tr_eval_title">Held-out evaluation (44 QA items)</h3>
+      <div class="tr-eval">
+        <div class="stat"><b id="ev-any">—</b><span data-i18n="tr_eval_any">any keyword hit</span></div>
+        <div class="stat"><b id="ev-all">—</b><span data-i18n="tr_eval_all">all keywords hit</span></div>
+        <div class="stat"><b id="ev-edi">—</b><span data-i18n="tr_eval_edi">edibility</span></div>
+        <div class="stat"><b id="ev-idf">—</b><span data-i18n="tr_eval_idf">identification</span></div>
+      </div>
+      <p class="cmp-src"><span data-i18n="cmp_source_label">Source</span>: <span id="tr-eval-source"></span></p>
+    </div>
+  </div>
 </main>
 <div id="inputbar"><div>
   <textarea id="input" rows="2" data-i18n-ph="input_placeholder" placeholder="Ask about mushroom safety… (Enter to send, Shift+Enter for newline)"></textarea>
@@ -179,7 +247,7 @@
 const I18N = {
   en: {
     header_sub: "from-scratch GPT · LoRA fine-tuned · offline · zero API cost",
-    tab_chat: "Chat", tab_cmp: "Before/After fine-tuning",
+    tab_chat: "Chat", tab_cmp: "Before/After fine-tuning", tab_training: "Training",
     preset_deathcap: "Death cap?", preset_chanterelle: "Chanterelle vs jack-o'-lantern",
     preset_firstaid: "Poisoning first aid", preset_morels: "Morels", preset_sporeprint: "Spore print",
     params_title: "Generation parameters",
@@ -194,10 +262,23 @@ const I18N = {
     status_streaming: "streaming · {n} tokens · {s}s · {t} tok/s · temp {temp} · top-k {k}",
     stats_done: "{n} tokens · {s}s · {t} tok/s · temp {temp} · top-k {k} · repetition {r}",
     err_prefix: "Error: ",
+    tr_loading: "Loading training info…", tr_loss_title: "Loss curve (pretraining)",
+    tr_legend_train: "train loss", tr_legend_val: "val loss",
+    tr_hp_title: "Hyperparameters", tr_hp_model: "Model", tr_hp_train: "Training", tr_hp_lora: "LoRA fine-tuning",
+    tr_eval_title: "Held-out evaluation (44 QA items)", tr_eval_any: "any keyword hit",
+    tr_eval_all: "all keywords hit", tr_eval_edi: "edibility", tr_eval_idf: "identification",
+    tr_failed: "Failed to load training info: ",
+    hp_layers: "layers", hp_heads: "heads", hp_embed: "embed dim", hp_params: "params",
+    hp_vocab: "vocab", hp_block: "block size",
+    hp_steps: "steps", hp_lr: "learning rate", hp_minlr: "min lr", hp_warmup: "warmup steps",
+    hp_batch: "batch size", hp_clip: "grad clip", hp_wd: "weight decay", hp_dtype: "dtype",
+    hp_corpus: "corpus", hp_tokens: "tokens", hp_wall: "wall time", hp_bestval: "best val",
+    hp_r: "rank r", hp_alpha: "alpha", hp_dropout: "dropout", hp_trainable: "trainable",
+    hp_pairs: "QA pairs", hp_lora_steps: "steps", hp_lora_val: "val loss",
   },
   zh: {
     header_sub: "从零实现 GPT · LoRA 微调 · 离线 · 零 API 成本",
-    tab_chat: "聊天", tab_cmp: "微调前后对比",
+    tab_chat: "聊天", tab_cmp: "微调前后对比", tab_training: "训练信息",
     preset_deathcap: "毒鹅膏？", preset_chanterelle: "鸡油菌 vs 杰克灯笼菌",
     preset_firstaid: "中毒急救", preset_morels: "羊肚菌", preset_sporeprint: "孢子印",
     params_title: "生成参数",
@@ -212,6 +293,19 @@ const I18N = {
     status_streaming: "生成中 · {n} tokens · {s} 秒 · {t} tok/s · 温度 {temp} · top-k {k}",
     stats_done: "{n} tokens · {s} 秒 · {t} tok/s · 温度 {temp} · top-k {k} · 重复惩罚 {r}",
     err_prefix: "错误：",
+    tr_loading: "训练信息加载中…", tr_loss_title: "损失曲线（预训练）",
+    tr_legend_train: "训练损失", tr_legend_val: "验证损失",
+    tr_hp_title: "超参数", tr_hp_model: "模型", tr_hp_train: "训练", tr_hp_lora: "LoRA 微调",
+    tr_eval_title: "留出评测（44 条问答）", tr_eval_any: "命中任一关键词",
+    tr_eval_all: "命中全部关键词", tr_eval_edi: "食性判断", tr_eval_idf: "形态识别",
+    tr_failed: "训练信息加载失败：",
+    hp_layers: "层数", hp_heads: "头数", hp_embed: "嵌入维度", hp_params: "参数量",
+    hp_vocab: "词表", hp_block: "上下文长度",
+    hp_steps: "步数", hp_lr: "学习率", hp_minlr: "最小学习率", hp_warmup: "预热步数",
+    hp_batch: "批大小", hp_clip: "梯度裁剪", hp_wd: "权重衰减", hp_dtype: "精度",
+    hp_corpus: "语料", hp_tokens: "token 数", hp_wall: "训练耗时", hp_bestval: "最佳验证损失",
+    hp_r: "秩 r", hp_alpha: "alpha", hp_dropout: "dropout", hp_trainable: "可训练参数",
+    hp_pairs: "问答对", hp_lora_steps: "步数", hp_lora_val: "验证损失",
   },
 };
 let lang = 'en';
@@ -240,12 +334,16 @@ document.getElementById('lang-zh').addEventListener('click', () => setLang('zh')
 function switchTab(name) {
   document.getElementById('tab-chat').classList.toggle('active', name === 'chat');
   document.getElementById('tab-cmp').classList.toggle('active', name === 'cmp');
+  document.getElementById('tab-training').classList.toggle('active', name === 'training');
   document.getElementById('pane-chat').classList.toggle('active', name === 'chat');
   document.getElementById('pane-cmp').classList.toggle('active', name === 'cmp');
+  document.getElementById('pane-training').classList.toggle('active', name === 'training');
   if (name === 'cmp') loadComparison();
+  if (name === 'training') loadTraining();
 }
 document.getElementById('tab-chat').addEventListener('click', () => switchTab('chat'));
 document.getElementById('tab-cmp').addEventListener('click', () => switchTab('cmp'));
+document.getElementById('tab-training').addEventListener('click', () => switchTab('training'));
 
 /* ================= generation parameters ================= */
 const params = {temperature: 0.7, top_k: 40, repetition_penalty: 1.15, max_tokens: 128};
@@ -258,10 +356,11 @@ const params = {temperature: 0.7, top_k: 40, repetition_penalty: 1.15, max_token
   });
 });
 
-/* ================= chat ================= */
+/* ================= chat (multi-turn) ================= */
 const chat = document.getElementById('chat'), input = document.getElementById('input'),
       send = document.getElementById('send');
 let streaming = false;
+let history = [];  // multi-turn conversation memory: {role, content}[]
 
 function addMsg(role, text) {
   const div = document.createElement('div');
@@ -307,7 +406,8 @@ async function ask(prompt) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt, max_tokens: params.max_tokens, temperature: params.temperature,
+      body: JSON.stringify({prompt, history: history.slice(-6),   // last 6 messages
+                            max_tokens: params.max_tokens, temperature: params.temperature,
                             top_k: params.top_k, repetition_penalty: params.repetition_penalty,
                             no_repeat_ngram_size: 4}),
     });
@@ -330,6 +430,7 @@ async function ask(prompt) {
       }
     }
     updateMeta(true);
+    history.push({role: 'user', content: prompt}, {role: 'assistant', content: acc});
   } catch (e) {
     caret.remove();
     bodyEl.textContent = t('err_prefix') + e.message;
@@ -360,6 +461,93 @@ async function loadComparison() {
   }
 }
 
+/* ================= training info ================= */
+let trLoaded = false;
+
+function fmtNum(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  if (typeof v === 'number' && Math.abs(v) < 0.01) return v.toString();
+  if (typeof v === 'number' && Math.abs(v) >= 1000) return v.toLocaleString('en-US');
+  return (Math.round(v * 100) / 100).toString();
+}
+
+function renderLossCurve(loss) {
+  const svg = document.getElementById('tr-svg');
+  const W = 640, H = 260, padL = 44, padR = 16, padT = 14, padB = 30;
+  const steps = loss.steps, tr = loss.train_loss, va = loss.val_loss;
+  if (!steps.length) return;
+  const sMin = Math.min(...steps), sMax = Math.max(...steps);
+  const all = tr.filter(v => v !== null && v !== undefined);
+  const vMin = Math.min(...all), vMax = Math.max(...all);
+  const X = s => padL + (s - sMin) / Math.max(1, sMax - sMin) * (W - padL - padR);
+  const Y = v => padT + (1 - (v - vMin) / Math.max(1e-9, vMax - vMin)) * (H - padT - padB);
+  const pts = (arr, skipNull) => arr.map((v, i) => (skipNull && (v === null || v === undefined)) ? null : `${X(steps[i]).toFixed(1)},${Y(v).toFixed(1)}`)
+                                .filter(p => p !== null).join(' ');
+  let s = `<rect x="0" y="0" width="${W}" height="${H}" fill="none"/>`;
+  // grid + axis labels
+  for (let g = 0; g <= 4; g++) {
+    const gy = padT + g / 4 * (H - padT - padB);
+    s += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="rgba(0,0,0,0.06)"/>`;
+    s += `<text x="${padL - 6}" y="${gy + 4}" font-size="10" fill="#6d737c" text-anchor="end">${fmtNum(vMin + (1 - g / 4) * (vMax - vMin))}</text>`;
+  }
+  s += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}" stroke="rgba(0,0,0,0.12)"/>`;
+  s += `<line x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}" stroke="rgba(0,0,0,0.12)"/>`;
+  s += `<text x="${padL}" y="${H - 8}" font-size="10" fill="#6d737c">step ${fmtNum(sMin)}</text>`;
+  s += `<text x="${W - padR}" y="${H - 8}" font-size="10" fill="#6d737c" text-anchor="end">step ${fmtNum(sMax)}</text>`;
+  // val drawn first (underneath), train on top so the indigo train line stays
+  // visible where the two curves overlap early in training
+  s += `<polyline points="${pts(va, true)}" fill="none" stroke="#059669" stroke-width="1.8" stroke-linejoin="round"/>`;
+  s += `<polyline points="${pts(tr, false)}" fill="none" stroke="#4f46e5" stroke-width="2.2" stroke-linejoin="round"/>`;
+  svg.innerHTML = s;
+}
+
+function kv(list) {
+  return list.map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
+}
+
+async function loadTraining() {
+  if (trLoaded) return;
+  try {
+    const res = await fetch('/api/training');
+    const data = await res.json();
+    renderLossCurve(data.loss);
+    document.getElementById('tr-loss-source').textContent = data.loss.source;
+    const hp = data.hyperparams;
+    document.getElementById('tr-model').innerHTML = kv([
+      [t('hp_layers'), hp.model.layers], [t('hp_heads'), hp.model.heads],
+      [t('hp_embed'), hp.model.embed_dim], [t('hp_params'), fmtNum(hp.model.params)],
+      [t('hp_vocab'), hp.model.vocab_size], [t('hp_block'), hp.model.block_size],
+    ]);
+    const tr = hp.training;
+    document.getElementById('tr-training').innerHTML = kv([
+      [t('hp_steps'), tr.steps], [t('hp_lr'), tr.learning_rate], [t('hp_minlr'), tr.min_learning_rate],
+      [t('hp_warmup'), tr.warmup_steps], [t('hp_batch'), tr.batch_size], [t('hp_block'), tr.block_size],
+      [t('hp_clip'), tr.grad_clip], [t('hp_wd'), tr.weight_decay], [t('hp_dtype'), tr.dtype],
+      [t('hp_corpus'), tr.corpus_mb + ' MB'], [t('hp_tokens'), fmtNum(tr.tokens)],
+      [t('hp_wall'), tr.wall_minutes + ' min'], [t('hp_bestval'), tr.best_val],
+    ]);
+    const lo = hp.lora;
+    document.getElementById('tr-lora').innerHTML = kv([
+      [t('hp_r'), lo.r], [t('hp_alpha'), lo.alpha], [t('hp_dropout'), lo.dropout],
+      [t('hp_trainable'), lo.trainable_pct + '%'], [t('hp_pairs'), `${lo.train_pairs}/${lo.val_pairs}`],
+      [t('hp_lora_steps'), lo.steps], [t('hp_lora_val'), lo.val_loss],
+    ]);
+    const ev = data.evaluation;
+    const pct = v => (v * 100).toFixed(1) + '%';
+    document.getElementById('ev-any').textContent = pct(ev.hit_any);
+    document.getElementById('ev-all').textContent = pct(ev.hit_all);
+    const cat = ev.categories;
+    document.getElementById('ev-edi').textContent = pct(cat.edibility.hit_any);
+    document.getElementById('ev-idf').textContent = pct(cat.identification.hit_any);
+    document.getElementById('tr-eval-source').textContent = ev.source;
+    document.getElementById('tr-loading').style.display = 'none';
+    document.getElementById('tr-content').style.display = 'block';
+    trLoaded = true;
+  } catch (e) {
+    document.getElementById('tr-loading').textContent = t('tr_failed') + e.message;
+  }
+}
+
 send.addEventListener('click', () => {
   const q = input.value.trim();
   if (!q) return;
@@ -372,12 +560,14 @@ input.addEventListener('keydown', (e) => {
 document.querySelectorAll('#presets button').forEach(b =>
   b.addEventListener('click', () => ask(b.dataset.q)));
 
-/* ================= init (URL params: ?lang=zh, ?tab=cmp) ================= */
+/* ================= init (URL params: ?lang=zh, ?tab=cmp|training) ================= */
 (function init() {
   const p = new URLSearchParams(location.search);
   if (p.get('lang') === 'zh') setLang('zh');
   applyLang();
-  if (p.get('tab') === 'cmp') switchTab('cmp');
+  const tab = p.get('tab');
+  if (tab === 'cmp') switchTab('cmp');
+  else if (tab === 'training') switchTab('training');
 })();
 </script>
 </body>

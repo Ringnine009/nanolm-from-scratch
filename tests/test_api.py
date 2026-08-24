@@ -67,6 +67,10 @@ def test_index_serves_ui(client):
     assert "中文" in r.text
     assert "stats_done" in r.text
     assert "lang-zh" in r.text
+    # v6: multi-turn history + Training tab (SVG loss curve, hyperparams)
+    assert "history" in r.text
+    assert "tab-training" in r.text
+    assert "tr-svg" in r.text
 
 
 def test_comparison_returns_structured_json(client):
@@ -82,3 +86,39 @@ def test_comparison_returns_structured_json(client):
     # cached on repeat calls
     r2 = client.get("/api/comparison")
     assert r2.json() == body
+
+
+def test_training_returns_structured_json(client):
+    r = client.get("/api/training")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"loss", "hyperparams", "evaluation"}
+    # loss arrays present (from the archived sample when no CSV is available)
+    assert len(body["loss"]["steps"]) >= 8
+    assert len(body["loss"]["train_loss"]) == len(body["loss"]["steps"])
+    assert body["loss"]["source"] in ("out/pretrain/losses.csv", "archived sample")
+    # hyperparams have the three sections and the real run values
+    hp = body["hyperparams"]
+    assert set(hp) == {"model", "training", "lora"}
+    assert hp["model"]["layers"] > 0 and hp["model"]["vocab_size"] > 0
+    assert hp["training"]["steps"] == 6000
+    assert hp["lora"]["r"] == 8 and hp["lora"]["alpha"] == 16
+    # evaluation numbers are the real held-out results
+    ev = body["evaluation"]
+    assert ev["n"] == 44
+    assert abs(ev["hit_any"] - 0.386) < 0.01
+    assert abs(ev["hit_all"] - 0.091) < 0.01
+    assert abs(ev["categories"]["edibility"]["hit_any"] - 0.80) < 0.01
+
+
+def test_chat_accepts_history_field(client):
+    r = client.post("/api/chat", json={
+        "prompt": "What about the destroying angel?",
+        "history": [
+            {"role": "user", "content": "Is the death cap poisonous?"},
+            {"role": "assistant", "content": "Yes, it is deadly poisonous."},
+        ],
+        "max_tokens": 8,
+    })
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers["content-type"]
