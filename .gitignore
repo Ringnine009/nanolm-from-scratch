@@ -15,8 +15,8 @@ venv/
 # training artifacts (regenerable)
 checkpoints/
 out/
-data/processed/*.bin
-data/processed/tokenizer.json
+data/processed/
+data/processed_zh/
 data/corpus/raw/*.txt
 data/corpus/corpus.txt
 

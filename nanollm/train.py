@@ -153,17 +153,21 @@ def main(argv=None):
     if args.init_from:
         ckpt = torch.load(args.init_from, map_location=device, weights_only=True)
         model.load_state_dict(ckpt["model"])
-        optimizer.load_state_dict(ckpt["optimizer"])
-        step = ckpt["step"]
+        # a merged/plain checkpoint has no optimizer state -> start fresh
+        if ckpt.get("optimizer") is not None:
+            optimizer.load_state_dict(ckpt["optimizer"])
+        step = ckpt.get("step", 0)
         best_val = ckpt.get("best_val", float("inf"))
-        print(f"[resume] step={step} best_val={best_val:.4f} from {args.init_from}")
+        print(f"[resume] step={step} best_val={best_val:.4f} from {args.init_from}"
+              + ("" if ckpt.get("optimizer") is not None else " (fresh optimizer)"))
     else:
         latest = out_dir / "latest.ckpt"
         if latest.exists():
             ckpt = torch.load(latest, map_location=device, weights_only=True)
             model.load_state_dict(ckpt["model"])
-            optimizer.load_state_dict(ckpt["optimizer"])
-            step = ckpt["step"]
+            if ckpt.get("optimizer") is not None:
+                optimizer.load_state_dict(ckpt["optimizer"])
+            step = ckpt.get("step", 0)
             best_val = ckpt.get("best_val", float("inf"))
             print(f"[resume] auto-resumed from {latest} step={step}")
 

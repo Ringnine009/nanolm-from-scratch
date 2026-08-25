@@ -24,6 +24,8 @@ def main(argv=None):
     p.add_argument("--out-dir", type=str, default="data/processed")
     p.add_argument("--vocab-size", type=int, default=12000)
     p.add_argument("--val-fraction", type=float, default=0.01)
+    p.add_argument("--tokenizer", type=str, default=None,
+                   help="reuse an existing tokenizer.json instead of training a new BPE")
     args = p.parse_args(argv)
 
     corpus_path = Path(args.corpus)
@@ -31,14 +33,18 @@ def main(argv=None):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     text = corpus_path.read_text(encoding="utf-8")
-    print(f"[corpus] {len(text)/1024:.0f} KB of text")
+    print(f"[corpus] {len(text.encode('utf-8'))/1024:.0f} KB of text")
 
-    # BPE merge training on the corpus (deterministic)
-    tokenizer = BPETokenizer(vocab_size=args.vocab_size)
-    tokenizer.train([text], verbose=True)
-    tok_path = out_dir / "tokenizer.json"
-    tokenizer.save(tok_path)
-    print(f"[bpe] {len(tokenizer.merges)} merges learned; tokenizer -> {tok_path}")
+    if args.tokenizer:
+        tokenizer = BPETokenizer.load(args.tokenizer)
+        print(f"[bpe] reused tokenizer {args.tokenizer} (vocab={tokenizer.vocab_size})")
+    else:
+        # BPE merge training on the corpus (deterministic)
+        tokenizer = BPETokenizer(vocab_size=args.vocab_size)
+        tokenizer.train([text], verbose=True)
+        tok_path = out_dir / "tokenizer.json"
+        tokenizer.save(tok_path)
+        print(f"[bpe] {len(tokenizer.merges)} merges learned; tokenizer -> {tok_path}")
 
     stats = tokenize_corpus(corpus_path, tokenizer, out_dir, val_fraction=args.val_fraction)
     print(f"[data] train_tokens={stats['train_tokens']} val_tokens={stats['val_tokens']}")

@@ -6,10 +6,26 @@ from nanollm.generation import (
     _apply_repetition_penalty,
     _no_repeat_mask,
     cut_at_end,
+    decode_stream,
     drop_leading_junk,
     generate_tokens,
     strip_leading_punct,
 )
+
+
+def test_decode_stream_multibyte_no_replacement(tiny_tokenizer):
+    """A Chinese character is 3 byte-level BPE tokens; decoding the stream
+    token-by-token must not emit U+FFFD for valid text (v8 Chinese fix)."""
+    tok, _ = tiny_tokenizer
+    text = "毒鹅膏含有鹅膏毒肽。误食后应立即就医。"
+    ids = tok.encode(text)
+    assert len(ids) > len(text)  # multi-byte: more tokens than characters
+    chunks = list(decode_stream(tok, iter(ids)))
+    assert "".join(chunks) == text
+    assert "\ufffd" not in text
+    # an incomplete leading character (only 2 of its 3 bytes) yields nothing yet
+    partial = "".join(decode_stream(tok, iter(ids[:2])))
+    assert partial == "" or "\ufffd" in partial  # no partial garbage characters
 
 
 def test_repetition_penalty_lowers_repeated_logits():

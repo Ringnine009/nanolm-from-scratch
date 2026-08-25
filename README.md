@@ -266,6 +266,56 @@ numbers, a held-out evaluation (44 QA items, keyword-hit accuracy) and sample
 text before/after LoRA fine-tuning. The combined loss-curve figure is
 [`docs/assets/loss_curve.png`](docs/assets/loss_curve.png).
 
+## Chinese capability (v8) — evaluated, **not shipped**
+
+A Chinese-reply branch was investigated and **deliberately not shipped** —
+the decision was driven by a strict go/no-go evaluation, not by effort.
+
+What was built (all data/scripts committed under `data/qa_zh/` and
+`scripts/*_zh*`):
+- a 213 KB Chinese mushroom-safety corpus (MycoGuard Chinese knowledge seed +
+  original Chinese fact sheets / syndromes / rules / FAQ / first-aid, sources
+  in `data/qa_zh/NOTICE.md`);
+- 150 Chinese QA pairs (135 train / 15 val) + 30 disjoint held-out questions;
+- a Chinese branch model: 8,000-step continued pretraining on the Chinese
+  corpus from the English merged model, then LoRA fine-tuning on the Chinese QA.
+
+Go/no-go gates (30 held-out Chinese questions; relevance/factuality judged by
+a DashScope qwen reviewer; full per-item table in `out/eval_zh_results.json`,
+regenerable via `python scripts/eval_zh.py`):
+
+| gate | bar | result |
+|------|-----|--------|
+| a) relevance (回答切题) | ≥70% | **6.7%** ✗ |
+| b) factuality (事实正确) | ≥60% | **3.3%** ✗ (18/30 flagged dangerous) |
+| c) Chinese ratio (中文占比) | ≥90% | **90.5%** ✓ |
+| d) English regression (44-item keyword hit) | ≥30% | **38.6%** ✓ (unchanged) |
+
+Technical reasons: the byte-level BPE was trained on English (Chinese = ~3
+tokens/char with no Chinese merges), and the 28M-parameter model with a 213 KB
+Chinese corpus + 150 QA pairs can imitate Chinese-shaped text but not
+generalize to answer novel questions — outputs are memorized-fragment
+regurgitation, and 18/30 held-out answers contained potentially dangerous
+mushroom-safety misinformation. Shipping that would be unsafe and would hurt
+the project's credibility, so the feature stays off: the UI remains
+English-only for generated answers, and the Chinese branch model is not served.
+
+The evaluation itself also surfaced and fixed a real generation bug: the
+streaming generator now decodes multi-byte UTF-8 incrementally so valid
+Chinese text is never mangled into U+FFFD characters (regression-tested).
+
+## Tests
+
+```bash
+python -m pytest tests/ -q
+```
+
+Covers: tokenizer round-trips & specials; model shapes, causal masking,
+tied embeddings, manual-vs-SDPA attention equivalence; sampling determinism
+& top-k; multi-byte UTF-8 stream decoding (Chinese fix); training smoke
+(loss decreases, checkpoint resume); LoRA save/load/merge round-trips and
+trainability; held-out eval-set disjointness; FastAPI/SSE API behaviour.
+
 ## Known limitations
 
 - Trained on a tiny domain corpus (~1.5 MB); the model is a *demonstration*

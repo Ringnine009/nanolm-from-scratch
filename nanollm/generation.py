@@ -14,6 +14,7 @@ FastAPI server and the evaluation script.  Features:
 
 from __future__ import annotations
 
+import codecs
 import re
 from typing import Iterator, Optional
 
@@ -97,6 +98,12 @@ def generate_tokens(
     if seed is not None:
         rng.manual_seed(seed)
 
+    # Multi-byte UTF-8 (e.g. Chinese) spans several byte-level BPE tokens; a
+    # single token may be an *incomplete* character.  Decode incrementally and
+    # only yield COMPLETE characters so token-by-token streaming never emits
+    # U+FFFD replacement chars for valid text.
+    dec = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    stopped = False
     for _ in range(max_new_tokens):
         idx_cond = idx if idx.size(1) <= model.config.block_size else idx[:, -model.config.block_size:]
         logits = model(idx_cond)[0][:, -1, :]
@@ -112,8 +119,32 @@ def generate_tokens(
         context.append(nid)
         idx = torch.cat([idx, torch.tensor([[nid]], dtype=torch.long, device=device)], dim=1)
         if nid in stop_ids:
+            stopped = True
             break
-        yield tokenizer.decode([nid])
+        chunk = dec.decode(tokenizer.byte_decoder.get(nid, b"<unk>"))
+        if chunk:
+            yield chunk
+    if not stopped:  # flush any trailing complete characters at max tokens
+        tail = dec.decode(b"", final=True)
+        if tail:
+            yield tail
+
+
+def decode_stream(tokenizer: BPETokenizer, ids: Iterator[int]) -> Iterator[str]:
+    """Decode a stream of (possibly multi-byte) token ids into complete UTF-8
+    characters.  A Chinese character spans 3 byte-level BPE tokens, so a single
+    token is often an *incomplete* character: those bytes are buffered and only
+    emitted once the full character has arrived, so valid text never yields
+    U+FFFD replacement characters.  Trailing incomplete bytes at end-of-stream
+    flush as replacement characters (they are genuinely invalid UTF-8)."""
+    dec = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    for i in ids:
+        chunk = dec.decode(tokenizer.byte_decoder.get(i, b"<unk>"))
+        if chunk:
+            yield chunk
+    tail = dec.decode(b"", final=True)
+    if tail:
+        yield tail
 
 
 def strip_leading_punct(text: str) -> str:
