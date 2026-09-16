@@ -190,6 +190,7 @@ def main(argv=None):
     start_time = time.time()
     tokens_seen = 0
     train_loss, val_loss = float("nan"), float("nan")
+    evaluated = False  # has any evaluation run in this process?
 
     def log_line(msg):
         line = f"[step {step:>6}] {msg}"
@@ -206,6 +207,7 @@ def main(argv=None):
         # evaluation
         if step % args.eval_interval == 0:
             losses = estimate_loss(model, batcher, args.eval_iters, args.block_size, dtype, device)
+            evaluated = True
             train_loss, val_loss = losses["train"], losses["val"]
             improved = val_loss < best_val
             if improved:
@@ -249,6 +251,34 @@ def main(argv=None):
             log_line(f"loss={loss.item():.4f} lr={lr:.2e} tok/s={tps:.0f} wall={dt/60:.1f}min")
         step += 1
 
+    # If the loop never evaluated - resumed between two eval boundaries, a tiny
+    # --max-steps, or a wall-clock budget that ran out - evaluate once now, so
+    # that ``best.ckpt`` is always a validation-selected checkpoint.  (v1 ended
+    # with the dead comparison ``best_val < ckpt["best_val"]``, which is
+    # ``best_val < best_val``: the only live branch was "best.ckpt is missing",
+    # so an unevaluated model could be published under the name "best".)
+    best_path = out_dir / "best.ckpt"
+    if step > 0 and not evaluated:
+        losses = estimate_loss(model, batcher, args.eval_iters, args.block_size, dtype, device)
+        train_loss, val_loss = losses["train"], losses["val"]
+        improved = val_loss < best_val
+        if improved:
+            best_val = val_loss
+        evaluated = True
+        log_line(f"final eval train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
+                 f"best_val={best_val:.4f}" + (" (best)" if improved else ""))
+        ckpt = {
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "step": step,
+            "best_val": best_val,
+            "config": asdict(config),
+            "tokenizer_path": args.tokenizer,
+        }
+        torch.save(ckpt, out_dir / "latest.ckpt")
+        if improved:
+            torch.save(ckpt, best_path)
+
     # final checkpoint
     ckpt = {
         "model": model.state_dict(),
@@ -259,8 +289,13 @@ def main(argv=None):
         "tokenizer_path": args.tokenizer,
     }
     torch.save(ckpt, out_dir / "latest.ckpt")
-    if best_val < ckpt["best_val"] or not (out_dir / "best.ckpt").exists():
-        torch.save(ckpt, out_dir / "best.ckpt")
+    if not evaluated:
+        log_line("[warn] no evaluation ran in this process - best.ckpt NOT written; "
+                 "an unvalidated checkpoint must not be published as 'best'")
+    elif not best_path.exists():
+        torch.save(ckpt, best_path)
+        log_line(f"[warn] no validation improvement in this process; best.ckpt = final "
+                 f"evaluated state (val_loss={val_loss:.4f}, best_val={best_val:.4f})")
     log_line(f"done at step={step} best_val={best_val:.4f}")
     print(f"[done] checkpoints in {out_dir}")
 
