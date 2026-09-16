@@ -1,13 +1,20 @@
-torch>=2.7
-numpy
-regex
-fastapi>=0.110
-uvicorn[standard]
-pydantic>=2
-httpx
-requests
-matplotlib
-pytest
+# Pinned to the versions the published results were produced with
+# (RTX 5060 Laptop · Python 3.12.10 · Windows · torch 2.11.0+cu128).
+#
+# torch is pinned to the CUDA 12.8 build used here; install it from the wheel
+# index instead of PyPI so the +cu128 local version matches:
+#   pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+# (CPU-only machines can use the default PyPI wheel and drop the +cu128 suffix.)
+torch==2.11.0
+numpy==2.4.6
+regex==2026.2.28
+fastapi==0.141.1
+uvicorn[standard]==0.50.2
+pydantic==2.13.4
+httpx==0.28.1
+requests==2.32.5
+matplotlib==3.10.8
+pytest==9.1.1
 
 # Optional — only needed for scripts/fetch_wikipedia_hf.py (corpus enrichment):
-#   pip install datasets
+#   pip install datasets==5.0.1

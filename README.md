@@ -40,7 +40,9 @@ nanollm/
 ├── nanollm/
 │   ├── tokenizer.py     # byte-level BPE: training, encode/decode, special tokens
 │   ├── data.py          # token loading, pretrain batching, instruction datasets
-│   ├── model.py         # GPT from scratch (attention, MLP, LayerNorm, init, sampling)
+│   ├── model.py         # GPT from scratch (attention + KV cache, MLP, LayerNorm, init)
+│   ├── checkpoints.py   # the single safe checkpoint loader (weights_only=True)
+│   ├── eval_protocol.py # evaluation protocol v2: word-boundary match, polarity, baselines
 │   ├── train.py         # pretraining loop (AdamW, cosine LR, grad clip, ckpt, resume)
 │   ├── sample.py        # CLI sampling (temperature / top-k)
 │   ├── lora.py          # LoRALinear injection, save/load/merge
@@ -54,7 +56,9 @@ nanollm/
 │   ├── fetch_wikipedia_hf.py  # mushroom articles via HuggingFace datasets mirror
 │   ├── build_qa.py      # instruction QA set (template-generated + ~34 hand-written, spot-checked)
 │   ├── prepare_data.py  # train tokenizer, tokenize corpus → train.bin/val.bin
-│   ├── evaluate.py      # held-out eval (44 QA items) → keyword-hit accuracy
+│   ├── evaluate.py      # held-out eval, protocol v2 (multi-seed + baselines)
+│   ├── reproduce_v1_eval.py   # re-run the v1 evaluation from git history (audit trail)
+│   ├── benchmark_generation.py # decode throughput: v1 vs KV cache vs vectorised postproc
 │   └── plot_loss.py     # loss-curve figure from the CSV logs
 ├── data/
 │   ├── corpus/          # corpus sources (see NOTICE.md for licensing)
@@ -175,6 +179,12 @@ Only the assistant portion of each QA example is supervised (targets before
 `python -m nanollm.chat --ckpt checkpoints/merged.pt` gives the same model in
 the terminal.
 
+All of these share one decode path (`nanollm/generation.py`) that uses a **KV
+cache** (the prompt is prefilled once; each later step feeds a single token) and
+vectorised logit post-processing. Cached and uncached decoding are verified
+token-for-token identical in `tests/test_kv_cache.py`, and the speed-up is
+measured in `docs/results.md`.
+
 ---
 
 ## Quick start
@@ -225,9 +235,14 @@ python -m nanollm.finetune --base-ckpt out/pretrain/best.ckpt --out-dir out/lora
     --val-jsonl data/qa/qa_val.jsonl --batch-size 16 --block-size 256 --epochs 60 \
     --max-minutes 55 --r 8 --alpha 16 --lr 3e-4 --warmup-steps 20 --log-interval 10
 
-# 4b. (optional) held-out evaluation: 44 disjoint QA items, keyword-hit accuracy
+# 4b. (optional) held-out evaluation: 44 disjoint QA items, protocol v2
+#     (word-boundary keywords + polarity + baselines, 3 seeds; ~1 min on CUDA)
 python scripts/build_eval_set.py
-python scripts/evaluate.py
+python scripts/evaluate.py --seeds 0,1,2
+python scripts/evaluate.py --device cpu --seeds 0,1,2   # same answers, same score
+
+# 4c. (optional) decode-throughput benchmark: v1 vs KV cache (writes out/bench/)
+python scripts/benchmark_generation.py --devices cpu,cuda --dtypes fp32,bf16
 
 # 5. merge and serve
 python -m nanollm.merge --base-ckpt out/pretrain/best.ckpt --lora out/lora/lora_best.pt \
@@ -255,16 +270,31 @@ python -m pytest tests/ -q
 ```
 
 Covers: tokenizer round-trips & specials; model shapes, causal masking,
-tied embeddings, manual-vs-SDPA attention equivalence; sampling determinism
-& top-k; training smoke (loss decreases, checkpoint resume); LoRA
-save/load/merge round-trips and trainability; FastAPI/SSE API behaviour.
+tied embeddings, manual-vs-SDPA attention equivalence; **KV-cache equivalence
+(cached decoding is token-for-token identical to the uncached path, including
+across the sliding window)**; **CPU/CUDA reproducibility of sampling**;
+**sampling bounds (no out-of-vocabulary token ids in bf16/fp16)**; sampling
+determinism & top-k; **evaluation-protocol v2 (word boundaries, polarity,
+baselines)**; **safe checkpoint loading (`weights_only`) across the whole repo**;
+multi-byte UTF-8 stream decoding (Chinese fix); training smoke
+(loss decreases, checkpoint resume, `best.ckpt` is always validation-selected);
+LoRA save/load/merge round-trips and trainability; held-out eval-set
+disjointness; FastAPI/SSE API behaviour.
 
 ## Results
 
-See [`docs/results.md`](docs/results.md) for the training curves, loss
-numbers, a held-out evaluation (44 QA items, keyword-hit accuracy) and sample
-text before/after LoRA fine-tuning. The combined loss-curve figure is
-[`docs/assets/loss_curve.png`](docs/assets/loss_curve.png).
+See [`docs/results.md`](docs/results.md) for the training curves, loss numbers,
+a held-out evaluation under **protocol v2** (44 QA items, word-boundary
+keyword + polarity scoring, multi-seed intervals and **baselines**), the v1→v2
+decomposition and sample text before/after LoRA fine-tuning. The combined
+loss-curve figure is [`docs/assets/loss_curve.png`](docs/assets/loss_curve.png).
+
+Decode throughput (batch 1, 128 tokens, `scripts/benchmark_generation.py`):
+the KV cache + vectorised logit post-processing take the same 28.3M model from
+**82 → 301 tok/s on CUDA fp32 (3.7×)** and **78 → 205 tok/s on CPU fp32
+(2.65×)**, with the cached and uncached paths verified token-for-token
+identical. Per-item engineering record of every fix (finding → failing test →
+change → measured number): [`docs/upgrade-notes.md`](docs/upgrade-notes.md).
 
 ## Chinese capability (v8) — evaluated, **not shipped**
 
@@ -289,7 +319,7 @@ regenerable via `python scripts/eval_zh.py`):
 | a) relevance (回答切题) | ≥70% | **6.7%** ✗ |
 | b) factuality (事实正确) | ≥60% | **3.3%** ✗ (18/30 flagged dangerous) |
 | c) Chinese ratio (中文占比) | ≥90% | **90.5%** ✓ |
-| d) English regression (44-item keyword hit) | ≥30% | **38.6%** ✓ (unchanged) |
+| d) English regression (44-item keyword hit) | ≥30% | **38.6%** under v1 scoring; **30.3%** under protocol v2 (word-boundary + polarity, mean of 3 seeds, 95% CI [23.1, 38.6]) ✓ but exactly at the bar — see `docs/results.md` |
 
 Technical reasons: the byte-level BPE was trained on English (Chinese = ~3
 tokens/char with no Chinese merges), and the 28M-parameter model with a 213 KB
@@ -311,20 +341,27 @@ python -m pytest tests/ -q
 ```
 
 Covers: tokenizer round-trips & specials; model shapes, causal masking,
-tied embeddings, manual-vs-SDPA attention equivalence; sampling determinism
+tied embeddings, manual-vs-SDPA attention equivalence; KV-cache equivalence;
+CPU/CUDA sampling reproducibility and sampling bounds; sampling determinism
 & top-k; multi-byte UTF-8 stream decoding (Chinese fix); training smoke
 (loss decreases, checkpoint resume); LoRA save/load/merge round-trips and
-trainability; held-out eval-set disjointness; FastAPI/SSE API behaviour.
+trainability; evaluation-protocol v2; safe checkpoint loading; held-out
+eval-set disjointness; FastAPI/SSE API behaviour.
 
 ## Known limitations
 
 - Trained on a tiny domain corpus (~1.5 MB); the model is a *demonstration*
   of mechanics, not a capable assistant. Answers are often plausible but
   unreliable.
-- Held-out evaluation (44 items, disjoint from fine-tuning) scores **38.6%
-  keyword-hit (any expected keyword)** and 9.1% all-keywords — edibility
-  yes/no questions are answered best (~80%), specific factual recall is weak.
-  See `docs/results.md`.
+- Held-out evaluation (44 items, disjoint from fine-tuning) scores **30.3%
+  keyword-hit (any expected keyword)** under evaluation protocol v2 (mean of 3
+  seeds, word-boundary matching + polarity check, 95% CI [23.1%, 38.6%]) and
+  6.1% all-keywords — edibility yes/no questions are answered best, specific
+  factual recall is weak. A **keyword-lookup baseline over the fine-tuning
+  answers scores 59.1%**, i.e. retrieval beats the model: this is a
+  mechanism/method demonstration, not a knowledge store. Full protocol,
+  baselines and the v1→v2 decomposition: `docs/results.md`,
+  `docs/upgrade-notes.md`.
 - English-only; the QA set is small (491 pairs: 442 train / 49 val) and mostly
   template-generated
   (only ~34 hand-written, spot-checked — not specialist-reviewed).
@@ -359,9 +396,10 @@ MIT — see [LICENSE](LICENSE).
 
 1. **分词器**：自实现的 byte-level BPE（在语料上训练 11,741 次合并，词表 12,000），无需 tiktoken。
 2. **模型**：从零手写 GPT（embedding / 因果多头注意力 / 前馈 / LayerNorm / GPT-2 式初始化 / 权重共享），约 **28.3M 参数**（7 层 × 512 维），支持手动注意力与融合内核（SDPA）两种实现并可验证等价。
-3. **预训练**：在 1.5MB 蘑菇安全领域语料（自建知识库 + 维基百科公开文本）上训练 6,000 步（约 28 分钟，RTX 5060 Laptop），loss 从 9.50 稳定下降到 1.03（val 最低 5.02），含 AdamW、warmup+cosine 调度、梯度裁剪、bf16、checkpoint 断点续训。
+3. **预训练**：在 1.5MB 蘑菇安全领域语料（自建知识库 + 维基百科公开文本）上训练 6,000 步（约 28 分钟，RTX 5060 Laptop），loss 从 9.50 稳定下降到 **0.10**（val 最低 5.02，step 1200 触底后回升），含 AdamW、warmup+cosine 调度、梯度裁剪、bf16、checkpoint 断点续训。这一规模相当于把同一份语料**过了 133 个 epoch**，却只用了 Chinchilla 最优 token 预算的 **8.7%**（49.15M / 566M）——典型的小数据高 epoch 过拟合场景，train/val 双曲线已直接显示。
 4. **LoRA 微调**：自实现低秩适配器（注入 attention/MLP 全投影层，冻结基座权重，仅训练 1.6% 参数），用 442 条蘑菇安全问答对做指令微调（val loss 4.03 → 0.84），适配器独立保存（1.8MB）并可合并回基座。
-5. **推理**：FastAPI + SSE 流式聊天 + 轻量网页 UI + 命令行聊天，完全本地、零 API 成本，可作为蘑菇安全助手的离线层。
+5. **推理**：FastAPI + SSE 流式聊天 + 轻量网页 UI + 命令行聊天，完全本地、零 API 成本，可作为蘑菇安全助手的离线层。统一解码路径带 **KV cache** 与向量化 logits 后处理：batch=1、128 token 实测 **CUDA fp32 82 → 301 tok/s（3.7×）**、**CPU fp32 78 → 205 tok/s（2.65×）**，且 cache 与非 cache 路径逐 token 一致（有测试）。
+6. **评测（协议 v2）**：44 条留出问答按"词边界关键词 + 极性校验 + 基线 + 多 seed 区间"评分，**30.3%**（3 seed 均值，95% CI [23.1, 38.6]）；同一份答案按旧的子串规则会虚高到 **40.2%**，而**关键词查表基线高达 59.1%**——即检索比模型更会答题，这条基线是判断"模型到底学到什么"的关键。
 
 **效果对比**：微调前模型无法理解指令（输出重复乱码）；微调后能输出结构化、事实正确的答案（如"毒鹅膏含 α-鹅膏蕈碱，6-24 小时后出现延迟中毒症状，应立即联系中毒控制中心"）。
 

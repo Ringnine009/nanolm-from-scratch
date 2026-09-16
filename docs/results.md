@@ -9,8 +9,9 @@ README commands; raw logs are not committed).
 
 - **Corpus:** 1.50 MB of mushroom-safety text = 242 KB synthetic fact sheets
   (this repo, `scripts/kb.py`) + 1.13 MB Simple-English Wikipedia article
-  extracts (Apache-2.0, fetched via the HF mirror, see
-  `data/corpus/NOTICE.md`).
+  extracts (**CC BY-SA 4.0**, fetched via the HF mirror — the same license as
+  `data/corpus/NOTICE.md` and the corpus header; an earlier revision of this
+  file wrongly said "Apache-2.0", see `docs/upgrade-notes.md` D11).
 - **Tokenizer:** self-implemented byte-level BPE, vocab **12,000**
   (11,741 merges learned on the corpus, ~110 s), 373,167 tokens total
   (369,436 train / 3,731 val).
@@ -49,6 +50,27 @@ last logged evaluation is step 5700).
 The classic small-data signature: the model quickly memorizes the training
 text (train loss → 0.1) while validation loss bottoms out early. We fine-tune
 from the best-val checkpoint.
+
+### How much did we actually train? (the two numbers that were missing)
+
+| quantity | value | formula |
+|----------|-------|---------|
+| tokens seen | **49.15 M** | 6,000 steps × 32 batch × 256 block = 49,152,000 |
+| train tokens available | 369,436 | `data/processed/train.bin` (373,167 total − 3,731 val) |
+| **epochs over the training text** | **133.0** | 49,152,000 ÷ 369,436 |
+| Chinchilla-optimal budget (20 tok/param) | 566 M | 20 × 28,302,848 params |
+| **fraction of that budget used** | **8.7 %** | 49.15 M ÷ 566 M |
+
+This is **not** an under-trained model in the usual sense: it saw the same
+1.5 MB of text **133 times** while consuming only 8.7 % of a compute-optimal
+token budget. That is the textbook small-data overfitting regime, and the
+train/val curves show it directly — train loss falls to 0.12 while val loss
+bottoms out at **5.02 at step 1200 and then rises** (5.51 → 6.62 → 7.16).
+More steps on *this* corpus would make the numbers worse, not better; the fix
+is more/other data, not a longer run. It also explains the downstream results:
+the model memorizes mushroom-safety *phrasings* — which is why the keyword
+lookup baseline in the evaluation section is so strong — and LoRA then teaches
+it the answer *format*.
 
 ## LoRA fine-tuning (from best.ckpt)
 
@@ -99,7 +121,7 @@ failure. Contact a poison control center immediately if it is eaten.
   vomiting and diarrhea a few hours after eating. The toxins involved are
   gastrointestinal irritants. Seek medical help promptly if symptoms appear."*
 
-## Held-out evaluation (merged model)
+## Held-out evaluation (merged model) — **protocol v2**
 
 A **disjoint held-out set** of 44 mushroom-safety QA items was built by hand
 (`scripts/build_eval_set.py`): every question is phrased differently from all
@@ -107,29 +129,133 @@ A **disjoint held-out set** of 44 mushroom-safety QA items was built by hand
 training question is < 0.75 (checked programmatically in `tests/test_eval.py`).
 Answers are generated with the unified generation module (temp 0.7, top-k 40,
 repetition penalty 1.15, no-repeat 4-gram, `<|end|>` stop, seeded per item).
-Scoring is keyword-based (any / all expected keywords appear, case-insensitive).
 
-| metric | value |
-|--------|-------|
-| **hit (any expected keyword)** | **38.6%** (17/44) |
-| **hit (all expected keywords)** | **9.1%** (4/44) |
+Protocol v2 fixes three defects of the first evaluation (full record:
+[`docs/upgrade-notes.md`](upgrade-notes.md)):
 
-Per category (hit_any / hit_all):
+1. **word-boundary matching** — v1 used `keyword in answer.lower()`, so `cook`
+   was credited by *cooking*, `no` by *pois**no**us*, *k**no**wn* and *North
+   America*, and `edible` by ***in**edible* (a dangerous false positive);
+2. **polarity is now used** — every item carries `polarity: yes/no` and v1 never
+   read it, so an answer that flipped the stance scored like a correct one;
+3. **baselines + intervals** — the report now carries an "empty answer" floor, a
+   keyword-lookup baseline and a Wilson 95% CI (n=44 is a small sample).
 
-| category | n | hit_any | hit_all |
-|----------|---|---------|---------|
-| edibility yes/no | 10 | 80.0% | 20.0% |
-| identification | 8 | 12.5% | 12.5% |
-| habitat | 8 | 25.0% | 0.0% |
-| symptoms | 8 | 37.5% | 12.5% |
-| first-aid / general | 10 | 30.0% | 0.0% |
+Three runs (item seeds 0–43, 1000–1043, 2000–2043) with the same checkpoint:
 
-Honest reading: the LoRA-finetuned model reliably answers **yes/no edibility**
-questions (80% contain the expected fact), but **specific factual recall is
-weak** (e.g. "what color are the gills", "which toxin") — 27/44 answers
-contain none of the expected keywords. The model is a mechanism/method
-demonstration, not a reliable QA system. Full per-item results:
-`out/eval_results.json` (regenerate with `python scripts/evaluate.py`).
+| metric (v2) | run 0 | run 1 | run 2 | mean | pooled 95% CI |
+|-------------|-------|-------|-------|------|----------------|
+| **hit — any expected keyword (word boundary)** | 36.4% | 29.5% | 25.0% | **30.3%** | [23.1%, 38.6%] |
+| correct — hit **and** polarity not contradicted | 34.1% | 29.5% | 25.0% | 29.5% | — |
+| hit — all expected keywords | 9.1% | 6.8% | 2.3% | 6.1% | — |
+| *sensitivity:* regular inflections also accepted | 38.6% | 36.4% | 29.5% | 34.8% | — |
+| *v1 substring scoring, same answers* | 43.2% | 38.6% | 38.6% | 40.2% | — |
+
+Baselines (identical for every run — they do not use the model):
+
+| baseline | hit | correct | what it is |
+|----------|-----|---------|------------|
+| empty answer | 0.0% | 0.0% | floor: a model that never answers |
+| **keyword lookup** | **59.1%** | 56.8% | each eval question is answered with the stored answer of the most similar *training* question (content-word overlap) |
+
+**The uncomfortable number is the baseline.** A pure lookup table over the
+fine-tuning answers beats the 28M-parameter model by **~29 pp** (59.1% vs
+30.3%). Read together with the 133-epoch / 8.7%-Chinchilla figures above, the
+honest interpretation is: pretraining memorized mushroom-safety *phrasings*,
+LoRA taught the answer *format*, and retrieval over the same QA templates is a
+better use of that knowledge than sampling from the model. The model is a
+mechanism demonstration, not a knowledge store — and until this baseline
+existed, that was invisible.
+
+Decomposition of the published number (same checkpoint throughout):
+
+| what | number | why it differs |
+|------|--------|----------------|
+| **v1 as published (CUDA)** | 38.6% (17/44) | substring scoring + device-seeded RNG |
+| v1 as published (CPU, same code) | **52.3%** (23/44) | *same* commit, *same* checkpoint: v1 seeded `torch.Generator(device=...)`, so the answers themselves differ per device |
+| v1 scoring on the new answers | 40.2% | isolates the scoring rule |
+| **v2 strict (headline)** | **30.3%** | word boundaries + multi-seed mean |
+| v2 + explicit inflections (sensitivity) | 34.8% | answers that say *vomiting* where gold says *vomit* |
+
+The v1 CUDA/CPU gap is reproducible from git:
+`python scripts/reproduce_v1_eval.py --device cuda` → 38.6%,
+`--device cpu` → 52.3%. The script extracts the v1 generation module from commit
+`0c4ed5d`, so it runs the old code rather than a paraphrase of it.
+
+### Device consistency (D1 fix)
+
+Sampling now draws from a **CPU** generator and maps that draw through the
+cumulative distribution, so the random stream is device-independent. Re-running
+the identical protocol on CPU and on CUDA gives **132/132 byte-identical
+answers** (3 runs × 44 items) and therefore identical scores (30.3% mean on
+both). Before the fix, the same checkpoint *and* seed produced different text on
+the two devices:
+
+```
+CPU : ", the death cap is deadly poisonous. Amatoxins, chiefly"
+CUDA: " regions is edible, the only after thorough cooking. Gastrointestinal irritants"
+```
+
+### Per category (v2)
+
+| category | n | hit_any (run 0) | hit_all (run 0) | correct (run 0) |
+|----------|---|-----------------|-----------------|-----------------|
+| edibility yes/no | 10 | 60.0% | 20.0% | 50.0% |
+| identification | 8 | 37.5% | 12.5% | 37.5% |
+| habitat | 8 | 37.5% | 12.5% | 37.5% |
+| symptoms | 8 | 25.0% | 0.0% | 25.0% |
+| first-aid / general | 10 | 20.0% | 0.0% | 20.0% |
+
+Per-category numbers move with the seed (identification: 37.5% → 12.5% → 12.5%
+across the three runs), so single-run category values are not conclusions.
+Regenerate with `python scripts/evaluate.py --seeds 0,1,2 [--device cpu]`;
+per-item results land in `out/eval_v2_cuda.json` / `out/eval_v2_cpu.json`. A
+cached generation can be re-scored without a GPU:
+`python scripts/evaluate.py --from-generations out/eval_generations_cuda.json`.
+
+### What is still held out, and what is not (known limitation)
+
+The 44 items hold out **question phrasings**, not knowledge: 25 of the 26
+mushroom entities they ask about also occur in the fine-tuning QA set, so this
+is a *paraphrase* test, not a knowledge test. The keyword-lookup baseline is
+what makes that visible — a retriever over the training answers scores 59.1%,
+i.e. most of what the model appears to "know" is in the lookup table as well.
+A knowledge-level split would require re-fine-tuning on QA pairs whose entities
+never appear in training; that is not claimed here.
+
+## Decode throughput (KV cache + vectorised post-processing)
+
+Measured with `scripts/benchmark_generation.py` (round-robin, best of 6 rounds
+per configuration, batch size 1, 128 new tokens, one fixed prompt, same
+checkpoint). The laptop was also driving a heavily loaded display GPU, so the
+absolute tok/s are conservative; the ratios come from the same run.
+
+| configuration | CPU fp32 | CUDA fp32 | CUDA bf16 |
+|---------------|----------|-----------|-----------|
+| v1 (`0c4ed5d`): no cache, Python post-processing | 77.5 tok/s | 82.3 tok/s | 96.2 tok/s |
+| no cache, vectorised post-processing | 86.7 (1.12×) | 266.4 (3.24×) | 290.8 (3.02×) |
+| **KV cache + vectorised post-processing** | **205.0 (2.65×)** | **301.1 (3.66×)** | **288.1 (3.00×)** |
+| KV cache, post-processing disabled (upper bound) | 217.1 (2.80×) | 351.2 (4.27×) | 317.2 (3.30×) |
+
+Per-step cost of the logit post-processing (12,000-token vocab, 150-token
+context, 20 timed steps):
+
+| device | repetition penalty (v1 → v2) | no-repeat n-gram (v1 → v2) | both (v1 → v2) |
+|--------|------------------------------|----------------------------|----------------|
+| CPU | 2.04 ms → 0.05 ms | 0.92 ms → 0.03 ms | 2.56 ms → **0.10 ms** |
+| CUDA | **11.77 ms → 0.15 ms** | 0.67 ms → 0.18 ms | 14.41 ms → **0.50 ms** |
+
+This reproduces audit finding D8 (≈12 ms of repetition penalty per token): the
+v1 penalty indexed a GPU tensor once per context token, and each `row[tid] > 0`
+comparison synchronised the device — roughly 150 device round-trips per token.
+It also explains why v1 was not faster on CUDA than on CPU (82 vs 78 tok/s): the
+GPU was idle while Python waited on those round-trips.
+
+Honest reading: bf16 does **not** beat fp32 at batch 1 (288 vs 301 tok/s) —
+single-sequence decode is latency-bound, and bf16's throughput advantage needs
+batching. With the cache, post-processing is down to ~0.5 ms/step, i.e. the
+remaining cost is the forward pass; further gains would come from CUDA graphs or
+batched continuous serving, not from more Python tuning.
 
 ## Reproduce
 
