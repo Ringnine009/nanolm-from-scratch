@@ -36,6 +36,14 @@ def default_config() -> GPTConfig:
     return GPTConfig(vocab_size=12000, block_size=256, n_layer=7, n_head=8, n_embd=512)
 
 
+def _cached_attn_mask(q_len: int, kv_len: int, device) -> torch.Tensor:
+    """Boolean mask for a *non-square* cached attention call: query ``i`` holds
+    absolute position ``kv_len - q_len + i`` and may attend to keys up to it."""
+    q_pos = torch.arange(kv_len - q_len, kv_len, device=device)
+    k_pos = torch.arange(kv_len, device=device)
+    return k_pos.unsqueeze(0) <= q_pos.unsqueeze(1)
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(self, config: GPTConfig):
         super().__init__()
@@ -55,7 +63,14 @@ class CausalSelfAttention(nn.Module):
             persistent=False,
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, past_kv=None, use_cache: bool = False):
+        """Causal self-attention with an optional incremental KV cache.
+
+        ``past_kv`` is a ``(k, v)`` pair of the keys/values computed for earlier
+        positions (shape ``(B, n_head, past_len, head_dim)``); ``use_cache``
+        makes the layer return ``(y, (k, v))`` so the caller can keep it.  With
+        ``past_kv=None`` and ``use_cache=False`` this is the plain v1 path.
+        """
         B, T, C = x.shape
         qkv = self.c_attn(x)  # (B, T, 3*C)
         q, k, v = qkv.split(self.n_embd, dim=2)
@@ -64,20 +79,33 @@ class CausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
         v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
 
+        if past_kv is not None:
+            k = torch.cat([past_kv[0], k], dim=2)
+            v = torch.cat([past_kv[1], v], dim=2)
+        new_kv = (k, v) if use_cache else None
+
         if self.use_sdpa:
+            # q_len == 1 with a cache attends to every cached key; a fresh
+            # (square) call is plain causal attention.
+            mask = None if (past_kv is None or T == 1) else _cached_attn_mask(T, k.size(2), x.device)
             y = F.scaled_dot_product_attention(
-                q, k, v, attn_mask=None, is_causal=True,
+                q, k, v, attn_mask=mask, is_causal=(past_kv is None),
                 dropout_p=self.attn_dropout.p if self.training else 0.0,
             )
         else:
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(self.head_dim))
-            att = att.masked_fill(self.tril[:T, :T] == False, float("-inf"))  # noqa: E712
+            if past_kv is None:
+                att = att.masked_fill(self.tril[:T, :T] == False, float("-inf"))  # noqa: E712
+            else:
+                keep = _cached_attn_mask(T, k.size(2), x.device)
+                att = att.masked_fill(~keep, float("-inf"))
             att = F.softmax(att, dim=-1)
             att = self.attn_dropout(att)
             y = att @ v  # (B, n_head, T, head_dim)
 
         y = y.transpose(1, 2).contiguous().view(B, T, C)
-        return self.resid_dropout(self.c_proj(y))
+        y = self.resid_dropout(self.c_proj(y))
+        return (y, new_kv) if use_cache else y
 
 
 class MLP(nn.Module):
@@ -99,10 +127,14 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(config.n_embd, bias=config.bias)
         self.mlp = MLP(config)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.ln_1(x))
+    def forward(self, x: torch.Tensor, past_kv=None, use_cache: bool = False):
+        if use_cache:
+            attn_out, new_kv = self.attn(self.ln_1(x), past_kv, True)
+        else:
+            attn_out, new_kv = self.attn(self.ln_1(x), past_kv, False), None
+        x = x + attn_out
         x = x + self.mlp(self.ln_2(x))
-        return x
+        return (x, new_kv) if use_cache else x
 
 
 class GPT(nn.Module):
@@ -141,14 +173,34 @@ class GPT(nn.Module):
     def forward(
         self, idx: torch.Tensor, targets: torch.Tensor | None = None
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        logits, loss, _ = self._forward_impl(idx, targets)
+        return logits, loss
+
+    def _forward_impl(
+        self,
+        idx: torch.Tensor,
+        targets: torch.Tensor | None = None,
+        past_kv=None,
+        use_cache: bool = False,
+    ):
         B, T = idx.shape
-        assert T <= self.config.block_size, f"sequence longer than block_size {self.config.block_size}"
-        pos = torch.arange(0, T, dtype=torch.long, device=idx.device)
+        past_len = 0 if past_kv is None else past_kv[0][0].size(2)
+        assert past_len + T <= self.config.block_size, (
+            f"sequence longer than block_size {self.config.block_size} "
+            f"(cache {past_len} + new {T})"
+        )
+        pos = torch.arange(past_len, past_len + T, dtype=torch.long, device=idx.device)
         tok_emb = self.wte(idx)
         pos_emb = self.wpe(pos)
         x = self.drop(tok_emb + pos_emb)
-        for block in self.h:
-            x = block(x)
+        new_kv = [] if use_cache else None
+        for i, block in enumerate(self.h):
+            layer_past = None if past_kv is None else past_kv[i]
+            if use_cache:
+                x, kv = block(x, layer_past, True)
+                new_kv.append(kv)
+            else:
+                x = block(x, layer_past, False)
         x = self.ln_f(x)
         logits = self.lm_head(x)
         loss = None
@@ -156,7 +208,19 @@ class GPT(nn.Module):
             loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-100
             )
-        return logits, loss
+        return logits, loss, (tuple(new_kv) if use_cache else None)
+
+    def forward_cached(self, idx: torch.Tensor, past_kv=None):
+        """Incremental forward pass for generation: returns ``(logits, new_kv)``.
+
+        ``logits`` covers the ``idx`` positions (take ``[:, -1, :]`` to sample
+        the next token); ``new_kv`` is the per-layer ``(k, v)`` cache to hand to
+        the next call.  Feeding one token at a time with this cache produces the
+        same distribution as re-running the whole window, for O(T) instead of
+        O(T^2) attention work per step.
+        """
+        logits, _, kv = self._forward_impl(idx, None, past_kv, use_cache=True)
+        return logits, kv
 
     @torch.no_grad()
     def generate(
