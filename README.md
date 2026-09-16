@@ -406,3 +406,20 @@ MIT — see [LICENSE](LICENSE).
 **运行**：见上方英文 Quick start（`build_corpus.py` → `prepare_data.py` → `nanollm.train` → `nanollm.finetune` → `nanollm.merge` → `nanollm.server.app`）。
 
 **安全声明**：本项目仅为深度学习教学演示，输出不可用于真实蘑菇辨识或医疗决策。
+
+---
+
+## Full measured results (the long-form record kept off the site)
+
+The portfolio page shows one conclusion per line, each carrying the numbers and
+the caveat that qualifies it. The paragraphs below are the full-length version
+those lines were compressed from — the same figures, with the reasoning and the
+measurement history that the page deliberately no longer spells out. Nothing here
+is new, and no number on the page differs from this record.
+
+1. Pre-training: 28.3M-parameter GPT, 6000 steps in 28 minutes on an 8GB laptop GPU (29–87K tok/s), loss 9.50 → 0.10 (train), best val 5.02; custom BPE tokenizer (12,000 vocab) round-trips exactly.
+2. LoRA fine-tuning: 28 adapters, only 1.60% of parameters trainable (0.459M), 442/49 instruction pairs, val loss 4.03 → 0.84 in 3 minutes. Before fine-tuning the model outputs gibberish; after, it answers “Is the death cap mushroom poisonous?” with structured, factually correct guidance.
+3. Held-out evaluation, protocol v2 (44 hand-written questions, 3 seeds, word-boundary matching, polarity enforced): 30.3% hit rate with a pooled 95% CI of [23.1%, 38.6%]. The v1 figure of 38.6% was inflated by substring matching ("cook" credited by "cooking", "no" by "poisnous") — the same answers score 31.8% under the corrected rule.
+4. The uncomfortable number is the baseline, and it is reported: a pure keyword-lookup table over the fine-tuning answers scores 59.1% — beating the 28M-parameter model by ~29 points. Together with 133 epochs on 370K tokens (8.7% of a Chinchilla-optimal budget) and a val curve that bottoms at step 1200 then rises, the honest reading is that pretraining memorised phrasings and LoRA taught the answer format, not knowledge.
+5. A from-scratch KV cache, validated by asserting cached and uncached decoding produce token-for-token identical output, then measured: CPU fp32 77.5 → 205.0 tok/s (2.65x), CUDA fp32 82.3 → 301.1 (3.66x), CUDA bf16 96.2 → 288.1 (3.00x). The benchmark also exposed that v1's repetition penalty cost 11.8 ms/step in device syncs and caused the decoding loop to be index-out-of-bounds under bf16 — both fixed.
+6. True token-level SSE streaming (first token ~0.6s); inference fully local — zero API cost. CPU and CUDA sampling are now byte-identical across seeds (132/132 answers), which the v1 evaluation silently violated (the same checkpoint scored 52.3% on CPU and 38.6% on CUDA).
