@@ -104,7 +104,7 @@ def test_lora_saves_independent_small_file(tmp_path):
     inject_lora(model, r=4, alpha=8)
     path = tmp_path / "lora.pt"
     save_lora(model, path, base_ckpt="base.ckpt", r=4, alpha=8)
-    payload = torch.load(path, weights_only=False)
+    payload = torch.load(path, weights_only=True)
     n_full = sum(p.numel() for p in model.parameters())
     n_lora = sum(v["A"].numel() + v["B"].numel() for v in payload["adapters"].values())
     assert n_lora < n_full // 20  # adapters are a tiny fraction of the model

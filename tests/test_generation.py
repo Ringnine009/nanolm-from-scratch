@@ -92,7 +92,7 @@ def test_generate_tokens_stops_at_stop_id(tiny_checkpoint, tiny_tokenizer):
     from nanollm.model import GPT, GPTConfig
 
     tok, tok_path = tiny_tokenizer
-    ckpt = _t.load(tiny_checkpoint, map_location="cpu", weights_only=False)
+    ckpt = _t.load(tiny_checkpoint, map_location="cpu", weights_only=True)
     model = GPT(GPTConfig(**ckpt["config"]))
     model.load_state_dict(ckpt["model"])
     model.eval()
@@ -114,7 +114,7 @@ def test_generate_no_repeat_ngram_property(tiny_checkpoint, tiny_tokenizer):
     from nanollm.model import GPT, GPTConfig
 
     tok, tok_path = tiny_tokenizer
-    ckpt = _t.load(tiny_checkpoint, map_location="cpu", weights_only=False)
+    ckpt = _t.load(tiny_checkpoint, map_location="cpu", weights_only=True)
     model = GPT(GPTConfig(**ckpt["config"]))
     model.load_state_dict(ckpt["model"])
     model.eval()
@@ -133,7 +133,7 @@ def test_generate_tokens_deterministic_with_seed(tiny_checkpoint, tiny_tokenizer
     from nanollm.model import GPT, GPTConfig
 
     tok, tok_path = tiny_tokenizer
-    ckpt = _t.load(tiny_checkpoint, map_location="cpu", weights_only=False)
+    ckpt = _t.load(tiny_checkpoint, map_location="cpu", weights_only=True)
     model = GPT(GPTConfig(**ckpt["config"]))
     model.load_state_dict(ckpt["model"])
     model.eval()

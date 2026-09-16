@@ -27,7 +27,7 @@ def test_training_loss_decreases(tiny_checkpoint):
 
 def test_checkpoint_contains_model_and_config(tiny_checkpoint, tiny_tokenizer):
     tok, _ = tiny_tokenizer
-    ckpt = torch.load(tiny_checkpoint, map_location="cpu", weights_only=False)
+    ckpt = torch.load(tiny_checkpoint, map_location="cpu", weights_only=True)
     assert "model" in ckpt and "optimizer" in ckpt and "config" in ckpt
     assert ckpt["config"]["vocab_size"] == 400
     model = GPT(GPTConfig(**ckpt["config"]))
@@ -47,7 +47,7 @@ def test_resume_continues_training(tiny_checkpoint, tiny_bin_data, tmp_path):
 
     data_dir, tok_path = tiny_bin_data
     out2 = tmp_path / "out2"
-    ckpt1 = torch.load(tiny_checkpoint, map_location="cpu", weights_only=False)
+    ckpt1 = torch.load(tiny_checkpoint, map_location="cpu", weights_only=True)
     step1 = ckpt1["step"]
 
     train_main([
@@ -72,6 +72,6 @@ def test_resume_continues_training(tiny_checkpoint, tiny_bin_data, tmp_path):
         "--init-from", str(tiny_checkpoint),
         "--max-minutes", "30",
     ])
-    ckpt2 = torch.load(out2 / "latest.ckpt", map_location="cpu", weights_only=False)
+    ckpt2 = torch.load(out2 / "latest.ckpt", map_location="cpu", weights_only=True)
     assert ckpt2["step"] == 60
     assert ckpt2["step"] > step1

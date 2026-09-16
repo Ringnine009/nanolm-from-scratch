@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT))
 
 import torch
 
+from nanollm.checkpoints import load_checkpoint
 from nanollm.generation import generate_answer
 from nanollm.model import GPT, GPTConfig
 from nanollm.tokenizer import BPETokenizer
@@ -29,7 +30,7 @@ PROMPTS = [
 
 def load_model(ckpt_path: str, tokenizer_path: str, device: str):
     tokenizer = BPETokenizer.load(tokenizer_path)
-    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+    ckpt = load_checkpoint(ckpt_path, map_location=device, required=("model", "config"))
     config = GPTConfig(**ckpt["config"])
     model = GPT(config).to(device)
     model.load_state_dict(ckpt["model"])
